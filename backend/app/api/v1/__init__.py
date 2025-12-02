@@ -7,6 +7,7 @@ from . import (
     routes_auth_email,
     routes_health,
     routes_ingredients,
+    routes_profile,
     routes_recommendations,
 )
 
@@ -18,3 +19,4 @@ api_v1.include_router(routes_health.router)
 api_v1.include_router(routes_assistant.router)
 api_v1.include_router(routes_ingredients.router)
 api_v1.include_router(routes_recommendations.router)
+api_v1.include_router(routes_profile.router)

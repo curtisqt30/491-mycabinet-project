@@ -38,6 +38,8 @@ class UserLogin(BaseModel):
 class UserRead(BaseModel):
     id: int
     email: EmailStr
+    display_name: str | None = None
+    onboarding_complete: bool = False
 
     model_config = {"from_attributes": True}
 

@@ -24,6 +24,9 @@ export type TokenPair = {
 export type User = {
   id: number;
   email: string;
+  display_name?: string | null;
+  avatar_url?: string | null;
+  onboarding_complete: boolean;
 };
 
 export type AuthState = {
@@ -204,7 +207,13 @@ export async function fetchCurrentUser(accessToken: string): Promise<User> {
     throw new Error('Failed to fetch user');
   }
 
-  return res.json();
+  const data = await res.json();
+  
+  // Ensure onboarding_complete has a default value
+  return {
+    ...data,
+    onboarding_complete: data.onboarding_complete ?? false,
+  };
 }
 
 export async function logout(): Promise<void> {

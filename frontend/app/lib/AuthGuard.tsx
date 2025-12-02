@@ -4,44 +4,47 @@ import { router, useSegments, useRootNavigationState } from 'expo-router';
 import { useAuth } from './AuthContext';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 
-// Routes that don't require authentication
-const PUBLIC_SEGMENTS = ['(auth)'];
-
-// Check if the current route is public
-function isPublicRoute(segments: string[]): boolean {
-  return segments.length > 0 && PUBLIC_SEGMENTS.includes(segments[0]);
-}
-
+/**
+ * AuthGuard - Handles authentication and onboarding routing
+ * 1. Redirect unauthenticated users to login
+ * 2. Redirect new users to profile setup
+ * 3. Allow authenticated users with completed onboarding to access main app
+ */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, needsOnboarding } = useAuth();
   const segments = useSegments();
   const navigationState = useRootNavigationState();
 
   useEffect(() => {
     // Wait for navigation to be ready
     if (!navigationState?.key) return;
+    if (isLoading) return;
 
-    const inPublicRoute = isPublicRoute(segments);
+    const inAuthGroup = segments[0] === '(auth)';
+    const inOnboarding = segments[1] === 'profile-setup';
 
-    if (!isLoading) {
-      if (!isAuthenticated && !inPublicRoute) {
-        // User is not authenticated and trying to access protected route
+    if (!isAuthenticated) {
+      // Not logged in - redirect to login 
+      if (!inAuthGroup) {
         router.replace('/(auth)/login');
-      } else if (isAuthenticated && inPublicRoute) {
-        // User is authenticated but on auth screens (login, register, etc.)
-        // Skip redirect if on onboarding (user might want to see it)
-        const currentPath = `/${segments.join('/')}`;
-        if (!currentPath.includes('onboarding')) {
-          router.replace('/(tabs)/home');
-        }
+      }
+    } else if (needsOnboarding) {
+      // Logged in but hasn't completed onboarding
+      if (!inOnboarding) {
+        router.replace('/(auth)/profile-setup');
+      }
+    } else {
+      // Fully authenticated and onboarded
+      if (inAuthGroup) {
+        router.replace('/(tabs)/home');
       }
     }
-  }, [isAuthenticated, isLoading, segments, navigationState?.key]);
+  }, [isAuthenticated, isLoading, needsOnboarding, segments, navigationState?.key]);
 
-  // Show loading screen while checking auth
+  // Show loading spinner while checking auth state
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={styles.loading}>
         <ActivityIndicator size="large" color={Colors.textPrimary} />
       </View>
     );
@@ -51,7 +54,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
+  loading: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
