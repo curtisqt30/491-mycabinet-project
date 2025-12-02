@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import FormButton from '@/components/ui/FormButton';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
+import { useAuth } from '../lib/AuthContext';
 import type { Href } from 'expo-router';
 
 const API_BASE =
@@ -18,6 +19,8 @@ export default function VerifyEmailCodeScreen() {
     intent?: string;
     next?: string;
   }>();
+
+  const { register } = useAuth();
 
   const intent: 'verify' = 'verify';
   const title = 'Verify your email';
@@ -85,36 +88,56 @@ export default function VerifyEmailCodeScreen() {
           j?.detail && typeof j.detail === 'string'
             ? j.detail
             : 'Invalid or expired code';
-        Alert.alert('Couldn’t verify', detail);
+        Alert.alert("Couldn't verify", detail);
         return;
       }
+
       // If this is a signup flow, finalize by creating the user now
       try {
         const pending = (
           await import('../lib/signup-flow')
         ).SignupFlowStore.get();
+
         if (pending && pending.email === normalizedEmail) {
-          const reg = await fetch(`${API_BASE}/auth/register`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Accept: 'application/json',
-            },
-            body: JSON.stringify({
-              email: normalizedEmail,
-              password: pending.password,
-            }),
-          });
-          if (!reg.ok && reg.status !== 409) {
-            const txt = await reg.text().catch(() => '');
-            Alert.alert('Account creation failed', txt || 'Please try again.');
+          // Use the auth context register which handles token storage
+          try {
+            await register(normalizedEmail, pending.password, true); // rememberMe = true
+            (await import('../lib/signup-flow')).SignupFlowStore.clear();
+            // AuthGuard will redirect to home
             return;
+          } catch (regError: any) {
+            // If user already exists (409), try to just redirect
+            if (
+              regError?.message?.includes('409') ||
+              regError?.message?.includes('already')
+            ) {
+              Alert.alert(
+                'Account exists',
+                'This email is already registered. Please log in instead.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => router.replace('/(auth)/login'),
+                  },
+                ],
+              );
+              return;
+            }
+            throw regError;
           }
-          (await import('../lib/signup-flow')).SignupFlowStore.clear();
         }
-      } finally {
-        router.replace(targetRoute);
+      } catch (e: any) {
+        if (!e?.message?.includes('already')) {
+          Alert.alert(
+            'Account creation failed',
+            e?.message || 'Please try again.',
+          );
+          return;
+        }
       }
+
+      // If we get here without registering, just navigate to target
+      router.replace(targetRoute);
     } catch (e: any) {
       Alert.alert('Network error', e?.message ?? 'Please try again.');
     } finally {
@@ -132,7 +155,7 @@ export default function VerifyEmailCodeScreen() {
       });
       Alert.alert('Code sent', 'Check your inbox for a new code.');
     } catch {
-      Alert.alert('Couldn’t resend', 'Please try again shortly.');
+      Alert.alert("Couldn't resend", 'Please try again shortly.');
     }
   };
 
@@ -158,6 +181,7 @@ export default function VerifyEmailCodeScreen() {
             maxLength={1}
             style={styles.box}
             returnKeyType={i === CODE_LEN - 1 ? 'done' : 'next'}
+            editable={!submitting}
           />
         ))}
       </View>

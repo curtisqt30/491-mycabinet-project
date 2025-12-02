@@ -7,20 +7,19 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link } from 'expo-router';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import FormButton from '@/components/ui/FormButton';
 import AuthInput from '@/components/ui/AuthInput';
 import CheckBox from '@/components/ui/CheckBox';
-// import * as SecureStore from "expo-secure-store"; // TODO: persist tokens
-
-const API_BASE =
-  process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000/api/v1';
+import { useAuth } from '../lib/AuthContext';
 
 export default function LoginScreen() {
+  const { login, isLoading: authLoading } = useAuth();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,9 +63,10 @@ export default function LoginScreen() {
   const emailValid = useMemo(() => /\S+@\S+\.\S+/.test(email.trim()), [email]);
   const pwValid = useMemo(() => password.trim().length >= 1, [password]);
   const allValid = useMemo(() => emailValid && pwValid, [emailValid, pwValid]);
+  const isLoading = busy || authLoading;
 
   const handleLogin = async () => {
-    if (!allValid || busy) {
+    if (!allValid || isLoading) {
       setError('Please enter a valid email and password.');
       shake();
       return;
@@ -76,45 +76,21 @@ export default function LoginScreen() {
     setSuccess(null);
 
     try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({ email: email.trim(), password }),
-      });
+      // Use the auth context login - it handles token storage
+      await login(email.trim().toLowerCase(), password, rememberMe);
 
-      if (res.ok) {
-        // const data = await res.json();
-        // if (rememberMe) {
-        //   await SecureStore.setItemAsync("access_token", data.access_token);
-        //   await SecureStore.setItemAsync("refresh_token", data.refresh_token);
-        // }
-        setSuccess('Signed in! Redirecting…');
-        setTimeout(() => router.replace('/home'), 500);
-        return;
-      }
-
-      if (res.status === 401) {
-        setError('Invalid email or password.');
-        shake();
-        return;
-      }
-
-      if (res.status === 422) {
-        const j = await res.json().catch(() => null);
-        const msg = j?.detail?.[0]?.msg ?? 'Please check your inputs.';
-        setError(`Validation error: ${msg}`);
-        shake();
-        return;
-      }
-
-      const text = await res.text().catch(() => '');
-      setError(`Login failed (${res.status}). ${text || 'Try again.'}`);
-      shake();
+      setSuccess('Signed in! Redirecting…');
+      // AuthGuard will handle the redirect to home
     } catch (e: any) {
-      setError(`Network error: ${e?.message ?? e}`);
+      const message = e?.message || 'Login failed';
+
+      if (message.includes('Invalid') || message.includes('401')) {
+        setError('Invalid email or password.');
+      } else if (message.includes('Network') || message.includes('fetch')) {
+        setError('Network error. Please check your connection.');
+      } else {
+        setError(message);
+      }
       shake();
     } finally {
       setBusy(false);
@@ -138,6 +114,7 @@ export default function LoginScreen() {
         autoComplete="email"
         textContentType="emailAddress"
         returnKeyType="next"
+        editable={!isLoading}
       />
 
       <AuthInput
@@ -148,6 +125,7 @@ export default function LoginScreen() {
         autoComplete="password"
         textContentType="password"
         returnKeyType="go"
+        editable={!isLoading}
         onSubmitEditing={() => {
           void handleLogin();
         }}
@@ -158,6 +136,7 @@ export default function LoginScreen() {
           checked={rememberMe}
           onChange={setRememberMe}
           label="Keep me signed in"
+          disabled={isLoading}
         />
         <Link href="/reset-password" asChild>
           <Text style={styles.forgotLink}>Forgot password?</Text>
@@ -168,19 +147,26 @@ export default function LoginScreen() {
       {success ? <Text style={styles.success}>{success}</Text> : null}
 
       <FormButton
-        title={busy ? 'Signing in…' : 'Login'}
+        title={isLoading ? 'Signing in…' : 'Login'}
         onPress={() => {
           void handleLogin();
         }}
-        disabled={!allValid || busy}
+        disabled={!allValid || isLoading}
       />
-      {busy ? <ActivityIndicator style={{ marginTop: 12 }} /> : null}
+      {isLoading ? <ActivityIndicator style={{ marginTop: 12 }} /> : null}
 
       <Text style={styles.newUserText}>
         New user?{' '}
         <Link href="/create-account" asChild>
           <Text style={styles.link}>Sign up here</Text>
         </Link>
+      </Text>
+
+      {/* Info about remember me */}
+      <Text style={styles.infoText}>
+        {rememberMe
+          ? '✓ You will stay signed in on this device'
+          : 'You will need to sign in again next time'}
       </Text>
     </View>
   );
@@ -217,15 +203,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-  dividerRow: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginVertical: 12,
+  error: { marginTop: 8, color: '#ff6b6b', fontSize: 13, textAlign: 'center' },
+  success: {
+    marginTop: 8,
+    color: '#22c55e',
+    fontSize: 13,
+    textAlign: 'center',
   },
-  divider: { flex: 1, height: 1, backgroundColor: '#2C2A35' },
-  dividerText: { color: Colors.textSecondary, fontSize: 12 },
-  error: { marginTop: 8, color: '#ff6b6b', fontSize: 13 },
-  success: { marginTop: 8, color: '#22c55e', fontSize: 13 },
+  infoText: {
+    marginTop: 12,
+    color: Colors.textSecondary,
+    fontSize: 12,
+    textAlign: 'center',
+    opacity: 0.8,
+  },
 });

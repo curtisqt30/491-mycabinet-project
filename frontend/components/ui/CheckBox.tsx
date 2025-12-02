@@ -7,21 +7,38 @@ export default function CheckBox({
   checked,
   onChange,
   label,
+  disabled = false,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label?: string;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
-      onPress={() => onChange(!checked)}
-      style={styles.row}
+      onPress={() => {
+        if (!disabled) {
+          onChange(!checked);
+        }
+      }}
+      style={[styles.row, disabled && styles.rowDisabled]}
       hitSlop={10}
+      disabled={disabled}
     >
-      <View style={[styles.box, checked && styles.boxChecked]}>
+      <View
+        style={[
+          styles.box,
+          checked && styles.boxChecked,
+          disabled && styles.boxDisabled,
+        ]}
+      >
         {checked ? <Text style={styles.check}>✓</Text> : null}
       </View>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+      {label ? (
+        <Text style={[styles.label, disabled && styles.labelDisabled]}>
+          {label}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -31,6 +48,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  rowDisabled: {
+    opacity: 0.5,
   },
   box: {
     width: 20,
@@ -45,6 +65,7 @@ const styles = StyleSheet.create({
   boxChecked: {
     backgroundColor: Colors.textPrimary,
   },
+  boxDisabled: {},
   check: {
     color: Colors.background,
     fontSize: 14,
@@ -54,4 +75,5 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontSize: 13,
   },
+  labelDisabled: {},
 });

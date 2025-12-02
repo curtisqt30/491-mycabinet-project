@@ -9,12 +9,10 @@
     "scheme": "cocktailapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fall491group1.cocktailapp"
     },
-
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
@@ -23,13 +21,11 @@
       "edgeToEdgeEnabled": true,
       "package": "com.fall491group1.cocktailapp"
     },
-
     "web": {
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-
     "plugins": [
       "expo-router",
       [
@@ -41,13 +37,12 @@
           "backgroundColor": "#ffffff"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-secure-store"
     ],
-
     "experiments": {
       "typedRoutes": true
     },
-
     "extra": {
       "google": {
         "iosClientId": "IOS_CLIENT_ID.apps.googleusercontent.com",

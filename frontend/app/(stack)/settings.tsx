@@ -17,6 +17,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import BackButton from '@/components/ui/BackButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScrollView } from 'react-native-gesture-handler';
+import { useAuth } from '../lib/AuthContext';
 
 // Safe env lookup for RN/Jest
 const __ENV__ =
@@ -40,6 +41,8 @@ function Chevron({ open }: { open: boolean }) {
 }
 
 export default function SettingsScreen() {
+  const { user, logout, isLoading: authLoading } = useAuth();
+
   const [push, setPush] = useState(false);
   const [publicProfile, setPublicProfile] = useState(false);
   const [showDeleteLocal, setShowDeleteLocal] = useState(false);
@@ -55,10 +58,9 @@ export default function SettingsScreen() {
   // Add loading state for async operations
   const [isLoading, setIsLoading] = useState(false);
 
-  // TODO: Get this from your auth context or secure storage
+  // Get user email from auth context
   const getUserEmail = () => {
-    // Replace with actual user email from auth context
-    return 'no-reply@mycabinet.me';
+    return user?.email || 'no-reply@mycabinet.me';
   };
 
   const toggle = (fn: React.Dispatch<React.SetStateAction<boolean>>) => {
@@ -149,23 +151,15 @@ export default function SettingsScreen() {
     setConfirmSignOut(false);
 
     try {
-      // TODO: Call your logout endpoint
-      // await fetch(`${API_BASE}/auth/logout`, {
-      //   method: "POST",
-      //   headers: {
-      //     "Authorization": `Bearer ${token}`
-      //   },
-      // });
-
-      // Clear local auth storage
-      // await SecureStore.deleteItemAsync('authToken');
-      // await SecureStore.deleteItemAsync('refreshToken');
-
-      router.replace('/(auth)/login');
+      // Use auth context logout - it handles token clearing and API call
+      await logout();
+      // AuthGuard will redirect to login
     } catch {
       Alert.alert('Error', 'Failed to sign out. Please try again.');
     }
   };
+
+  const isBusy = isLoading || authLoading;
 
   return (
     <>
@@ -179,6 +173,7 @@ export default function SettingsScreen() {
       {/* Fixed header */}
       <View style={[styles.headerWrap, { paddingTop: insets.top + 56 }]}>
         <Text style={styles.title}>Settings</Text>
+        {user && <Text style={styles.userEmail}>{user.email}</Text>}
       </View>
 
       {/* Scrollable content */}
@@ -250,7 +245,7 @@ export default function SettingsScreen() {
               title="Delete Account (Permanent)"
               onPress={() => setConfirmDeleteAcct(true)}
               variant="danger"
-              disabled={isLoading}
+              disabled={isBusy}
             />
           </View>
         )}
@@ -297,7 +292,7 @@ export default function SettingsScreen() {
             <FormButton
               title="Change Password"
               onPress={handleChangePasswordDirect}
-              disabled={isLoading}
+              disabled={isBusy}
             />
             <Text style={styles.helperText}>
               Forgot your current password?{' '}
@@ -314,10 +309,10 @@ export default function SettingsScreen() {
         {/* Bottom Sign Out */}
         <View style={styles.footer}>
           <FormButton
-            title="Sign Out"
+            title={isBusy ? 'Signing Out...' : 'Sign Out'}
             onPress={() => setConfirmSignOut(true)}
             variant="dangerLogo"
-            disabled={isLoading}
+            disabled={isBusy}
           />
         </View>
 
@@ -385,6 +380,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     color: Colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 12,
   },
