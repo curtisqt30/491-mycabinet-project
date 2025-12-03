@@ -8,7 +8,10 @@ class UserOut(BaseModel):
     id: int
     email: str
     full_name: str | None = None
+    display_name: str | None = None
+    avatar_url: str | None = None
     provider: str
+    onboarding_complete: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -39,6 +42,7 @@ class UserRead(BaseModel):
     id: int
     email: EmailStr
     display_name: str | None = None
+    avatar_url: str | None = None
     onboarding_complete: bool = False
 
     model_config = {"from_attributes": True}
