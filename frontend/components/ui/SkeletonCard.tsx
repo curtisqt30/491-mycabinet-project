@@ -27,9 +27,15 @@ function useSkeletonDimensions(): SkeletonDimensions {
     const scale = Math.min(width / BASE_WIDTH, 1.2);
     const smallScale = Math.max(0.7, scale);
 
-    const padding = Math.max(MIN_PADDING, Math.round(BASE_PADDING * smallScale));
+    const padding = Math.max(
+      MIN_PADDING,
+      Math.round(BASE_PADDING * smallScale),
+    );
     const gap = Math.max(MIN_GAP, Math.round(BASE_GAP * smallScale));
-    const heartSize = Math.max(MIN_HEART_SIZE, Math.round(BASE_HEART_SIZE * smallScale));
+    const heartSize = Math.max(
+      MIN_HEART_SIZE,
+      Math.round(BASE_HEART_SIZE * smallScale),
+    );
     const borderRadius = Math.round(BASE_BORDER_RADIUS * smallScale);
     const cardWidth = Math.floor((width - padding * 2 - gap) / 2);
     const heartOffset = Math.max(4, Math.round(8 * smallScale));

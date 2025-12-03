@@ -220,7 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-    // Manual refresh (for pull-to-refresh, etc.)
+  // Manual refresh (for pull-to-refresh, etc.)
   const refreshAuth = useCallback(async () => {
     if (!state.isAuthenticated) return;
 

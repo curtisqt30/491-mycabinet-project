@@ -40,7 +40,10 @@ function useSkeletonLayout() {
     const scale = Math.min(width / BASE_WIDTH, 1.2);
     const smallScale = Math.max(0.7, scale);
 
-    const padding = Math.max(MIN_PADDING, Math.round(BASE_PADDING * smallScale));
+    const padding = Math.max(
+      MIN_PADDING,
+      Math.round(BASE_PADDING * smallScale),
+    );
     const gap = Math.max(MIN_GAP, Math.round(BASE_GAP * smallScale));
 
     return { padding, gap };
@@ -130,13 +133,16 @@ export default function HomeScreen() {
   }, []);
 
   // Pull-to-refresh handler - only way to get new random drinks
-  const handleRefresh = useCallback(async () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    try {
-      await refreshDrinks();
-    } finally {
-      setRefreshing(false);
-    }
+
+    void (async () => {
+      try {
+        await refreshDrinks();
+      } finally {
+        setRefreshing(false);
+      }
+    })();
   }, [refreshDrinks]);
 
   const handleCloseDrawer = useCallback(() => {

@@ -70,12 +70,27 @@ function useResponsiveDimensions(): CardDimensions {
     const smallScale = Math.max(0.7, scale); // Floor at 0.7x for tiny screens
 
     // Calculate scaled dimensions with min/max bounds
-    const padding = Math.max(MIN_PADDING, Math.round(BASE_PADDING * smallScale));
+    const padding = Math.max(
+      MIN_PADDING,
+      Math.round(BASE_PADDING * smallScale),
+    );
     const gap = Math.max(MIN_GAP, Math.round(BASE_GAP * smallScale));
-    const fontSize = Math.max(MIN_FONT_SIZE, Math.round(BASE_FONT_SIZE * smallScale));
-    const cardPadding = Math.max(MIN_CARD_PADDING, Math.round(BASE_CARD_PADDING * smallScale));
-    const heartSize = Math.max(MIN_HEART_SIZE, Math.round(BASE_HEART_SIZE * smallScale));
-    const heartIcon = Math.max(MIN_HEART_ICON, Math.round(BASE_HEART_ICON * smallScale));
+    const fontSize = Math.max(
+      MIN_FONT_SIZE,
+      Math.round(BASE_FONT_SIZE * smallScale),
+    );
+    const cardPadding = Math.max(
+      MIN_CARD_PADDING,
+      Math.round(BASE_CARD_PADDING * smallScale),
+    );
+    const heartSize = Math.max(
+      MIN_HEART_SIZE,
+      Math.round(BASE_HEART_SIZE * smallScale),
+    );
+    const heartIcon = Math.max(
+      MIN_HEART_ICON,
+      Math.round(BASE_HEART_ICON * smallScale),
+    );
     const borderRadius = Math.round(BASE_BORDER_RADIUS * smallScale);
 
     // Card width: (screen - 2*padding - gap) / 2
@@ -143,7 +158,12 @@ const CocktailCard = React.memo(function CocktailCard({
         pressed && styles.cardPressed,
       ]}
     >
-      <View style={[styles.imageContainer, { borderRadius: dimensions.borderRadius }]}>
+      <View
+        style={[
+          styles.imageContainer,
+          { borderRadius: dimensions.borderRadius },
+        ]}
+      >
         <Image
           source={{ uri: item.thumbUrl || undefined }}
           style={styles.image}
