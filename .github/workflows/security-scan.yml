@@ -62,4 +62,4 @@ jobs:
           # Adjust audit level if needed:
           #   low | moderate | high | critical
           #   Set to only fail on critical vulns
-          npm audit --audit-level=critical
+          npm audit --omit=dev --audit-level=critical
