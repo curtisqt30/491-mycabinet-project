@@ -24,6 +24,7 @@ import {
   getStoredEmail,
   getRememberMe,
 } from './auth';
+import { setFavoritesUser, clearFavoritesUser } from './favorites';
 
 type AuthContextType = AuthState & {
   login: (
@@ -60,11 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Computed: does user need onboarding?
   const needsOnboarding = useMemo(() => {
-    return (
-      state.isAuthenticated &&
-      state.user !== null &&
-      !state.user.onboarding_complete
-    );
+    return state.isAuthenticated && state.user !== null && !state.user.onboarding_complete;
   }, [state.isAuthenticated, state.user]);
 
   // Initialize auth state on app load
@@ -73,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const hasSession = await hasValidSession();
 
       if (!hasSession) {
+        clearFavoritesUser();
         setState({
           isAuthenticated: false,
           isLoading: false,
@@ -96,6 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch {
           // Refresh failed, user needs to re-login
           await clearTokens();
+          clearFavoritesUser();
           setState({
             isAuthenticated: false,
             isLoading: false,
@@ -109,6 +108,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Fetch current user
       try {
         const user = await fetchCurrentUser(accessToken);
+        
+        // Set user for favorites storage
+        setFavoritesUser(user.id);
+        
         setState({
           isAuthenticated: true,
           isLoading: false,
@@ -118,6 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // Failed to fetch user, clear auth
         await clearTokens();
+        clearFavoritesUser();
         setState({
           isAuthenticated: false,
           isLoading: false,
@@ -127,6 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('Auth initialization error:', error);
+      clearFavoritesUser();
       setState({
         isAuthenticated: false,
         isLoading: false,
@@ -146,6 +151,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await storeTokens(tokens, email, rememberMe);
 
         const user = await fetchCurrentUser(tokens.access_token);
+
+        // Set user for favorites storage
+        setFavoritesUser(user.id);
 
         setState({
           isAuthenticated: true,
@@ -172,6 +180,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const user = await fetchCurrentUser(tokens.access_token);
 
+        // Set user for favorites storage
+        setFavoritesUser(user.id);
+
         setState({
           isAuthenticated: true,
           isLoading: false,
@@ -193,6 +204,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await apiLogout();
     } finally {
+      // Clear favorites user reference
+      clearFavoritesUser();
+
       setState({
         isAuthenticated: false,
         isLoading: false,
@@ -201,6 +215,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     }
   }, []);
+
+  // Refresh user data only (without token refresh)
+  const refreshUser = useCallback(async () => {
+    if (!state.accessToken) return;
+
+    try {
+      const user = await fetchCurrentUser(state.accessToken);
+      setState((prev) => ({
+        ...prev,
+        user,
+      }));
+    } catch {
+      // If fetching user fails, try full refresh
+      await refreshAuth();
+    }
+  }, [state.accessToken]);
 
   // Manual refresh (for pull-to-refresh, etc.)
   const refreshAuth = useCallback(async () => {
@@ -224,22 +254,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await logout();
     }
   }, [state.isAuthenticated, logout]);
-
-  // Refresh user data only (without token refresh)
-  const refreshUser = useCallback(async () => {
-    if (!state.accessToken) return;
-
-    try {
-      const user = await fetchCurrentUser(state.accessToken);
-      setState((prev) => ({
-        ...prev,
-        user,
-      }));
-    } catch {
-      // If fetching user fails, try full refresh
-      await refreshAuth();
-    }
-  }, [state.accessToken, refreshAuth]);
 
   // Proactive token refresh
   const checkAndRefreshToken = useCallback(async () => {

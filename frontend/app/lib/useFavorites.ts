@@ -6,6 +6,8 @@ import {
   isFavorite as isFavAPI,
   toggleFavorite,
   subscribe,
+  clearUserCache,
+  clearAllFavoritesCache,
   type Favorite,
 } from './favorites';
 import { useFocusEffect } from 'expo-router';
@@ -29,7 +31,7 @@ export function useFavorites() {
     void refresh();
   }, [refresh]);
 
-  // react to global favorites changes
+  // react to global favorites changes (including user switch)
   React.useEffect(() => {
     const off = subscribe(() => {
       void refresh();
@@ -48,14 +50,48 @@ export function useFavorites() {
   const add = React.useCallback(async (f: Omit<Favorite, 'addedAt'>) => {
     await addFavorite(f);
   }, []);
+
   const remove = React.useCallback(async (id: string) => {
     await removeFavorite(id);
   }, []);
+
   const toggle = React.useCallback(
     async (f: Omit<Favorite, 'addedAt'>) => toggleFavorite(f),
     [],
   );
+
   const isFavorite = React.useCallback((id: string) => isFavAPI(id), []);
 
-  return { items, busy, refresh, add, remove, toggle, isFavorite };
+  // Cache clearing functions
+  const clearCache = React.useCallback(async () => {
+    setBusy(true);
+    try {
+      await clearUserCache();
+      setItems([]);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const clearAllCache = React.useCallback(async () => {
+    setBusy(true);
+    try {
+      await clearAllFavoritesCache();
+      setItems([]);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  return {
+    items,
+    busy,
+    refresh,
+    add,
+    remove,
+    toggle,
+    isFavorite,
+    clearCache,      // Clear current user's favorites
+    clearAllCache,   // Clear all favorites (all users)
+  };
 }
