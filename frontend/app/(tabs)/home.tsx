@@ -1,5 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Image,
+  useWindowDimensions,
+} from 'react-native';
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -10,20 +17,49 @@ import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import CocktailGrid, { type CocktailItem } from '@/components/ui/CocktailGrid';
 import SkeletonCard from '@/components/ui/SkeletonCard';
 import NavigationDrawer from '@/components/ui/NavigationDrawer';
-import { getRandomDrinks } from '@/app/lib/cocktails';
+import { useDrinks } from '@/app/lib/DrinksContext';
 import { useFavorites } from '@/app/lib/useFavorites';
 import { useAuth } from '@/app/lib/AuthContext';
+
+// Responsive skeleton layout constants (matching CocktailGrid)
+const BASE_WIDTH = 375;
+const BASE_PADDING = 16;
+const BASE_GAP = 10;
+const MIN_PADDING = 10;
+const MIN_GAP = 6;
 
 // Default avatar when user hasn't set one
 const DEFAULT_AVATAR =
   'https://api.dicebear.com/7.x/avataaars/png?seed=default';
 
+// Hook for responsive skeleton layout
+function useSkeletonLayout() {
+  const { width } = useWindowDimensions();
+
+  return useMemo(() => {
+    const scale = Math.min(width / BASE_WIDTH, 1.2);
+    const smallScale = Math.max(0.7, scale);
+
+    const padding = Math.max(MIN_PADDING, Math.round(BASE_PADDING * smallScale));
+    const gap = Math.max(MIN_GAP, Math.round(BASE_GAP * smallScale));
+
+    return { padding, gap };
+  }, [width]);
+}
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const skeletonLayout = useSkeletonLayout();
   const { user } = useAuth();
 
-  const [drinks, setDrinks] = useState<CocktailItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Session-cached drinks from context
+  const {
+    drinks: baseDrinks,
+    loading,
+    initialized,
+    refreshDrinks,
+  } = useDrinks();
+
   const [refreshing, setRefreshing] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const { items: favItems, toggle } = useFavorites();
@@ -33,94 +69,82 @@ export default function HomeScreen() {
   const displayName =
     user?.display_name || user?.email?.split('@')[0] || 'User';
 
-  const favIds = React.useMemo(
+  // Memoize favorite IDs set
+  const favIds = useMemo(
     () => new Set((favItems ?? []).map((f) => f.id)),
     [favItems],
   );
 
-  // Shared function to fetch and format drinks
-  const fetchDrinks = React.useCallback(async () => {
-    const randomDrinks = await getRandomDrinks(8);
-    return randomDrinks.map((drink) => ({
-      id: drink.idDrink,
-      name: drink.strDrink,
-      thumbUrl: drink.strDrinkThumb ?? null,
-      isFavorite: favIds.has(drink.idDrink),
-    }));
-  }, [favIds]);
-
-  // Fetch random drinks on mount
-  useEffect(() => {
-    let alive = true;
-    void (async () => {
-      try {
-        setLoading(true);
-        const cocktailItems = await fetchDrinks();
-        if (!alive) return;
-        setDrinks(cocktailItems);
-      } catch (error) {
-        console.error('Failed to fetch random drinks:', error);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [fetchDrinks]);
-
-  // Update favorite status when favItems change
-  useEffect(() => {
-    setDrinks((prev) =>
-      prev.map((drink) => ({
+  // Derive drinks with favorite status - no re-fetch needed when favs change
+  const drinks: CocktailItem[] = useMemo(
+    () =>
+      baseDrinks.map((drink) => ({
         ...drink,
-        isFavorite: favIds.has(String(drink.id)),
+        isFavorite: favIds.has(drink.id),
       })),
-    );
-  }, [favIds]);
+    [baseDrinks, favIds],
+  );
 
-  const handleOpen = (id: string | number) => {
-    const it = drinks.find((d) => String(d.id) === String(id));
-    if (!it) return;
-    router.push({
-      pathname: '/drink/[drinkId]',
-      params: {
-        drinkId: String(it.id),
-        name: it.name,
-        thumbUrl: it.thumbUrl ?? undefined,
-      },
-    });
-  };
+  // Fetch drinks once per session (on first mount or after logout/clear)
+  useEffect(() => {
+    if (!initialized) {
+      void refreshDrinks();
+    }
+  }, [initialized, refreshDrinks]);
 
-  const handleToggleFavorite = (id: string | number, _next: boolean) => {
-    const it = drinks.find((d) => String(d.id) === String(id));
-    if (!it) return;
-    void toggle({
-      id: String(it.id),
-      name: it.name,
-      thumbUrl: it.thumbUrl ?? null,
-    });
-  };
+  const handleOpen = useCallback(
+    (id: string | number) => {
+      const item = drinks.find((d) => String(d.id) === String(id));
+      if (!item) return;
+      router.push({
+        pathname: '/drink/[drinkId]',
+        params: {
+          drinkId: String(item.id),
+          name: item.name,
+          thumbUrl: item.thumbUrl ?? undefined,
+        },
+      });
+    },
+    [drinks],
+  );
 
-  const handleMenuPress = () => {
+  const handleToggleFavorite = useCallback(
+    (id: string | number, _next: boolean) => {
+      const item = drinks.find((d) => String(d.id) === String(id));
+      if (!item) return;
+      void toggle({
+        id: String(item.id),
+        name: item.name,
+        thumbUrl: item.thumbUrl ?? null,
+      });
+    },
+    [drinks, toggle],
+  );
+
+  const handleMenuPress = useCallback(() => {
     setDrawerVisible(true);
-  };
+  }, []);
 
-  const handleProfilePress = () => {
+  const handleProfilePress = useCallback(() => {
     router.push('/(tabs)/profile');
-  };
+  }, []);
 
-  const handleRefresh = async () => {
+  // Pull-to-refresh handler - only way to get new random drinks
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
     try {
-      setRefreshing(true);
-      const cocktailItems = await fetchDrinks();
-      setDrinks(cocktailItems);
-    } catch (error) {
-      console.error('Failed to refresh drinks:', error);
+      await refreshDrinks();
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [refreshDrinks]);
+
+  const handleCloseDrawer = useCallback(() => {
+    setDrawerVisible(false);
+  }, []);
+
+  // Show skeleton only on initial load, not on refreshes
+  const showSkeleton = loading && !initialized;
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -158,12 +182,28 @@ export default function HomeScreen() {
       </View>
 
       {/* Drink cards grid or skeleton loading state */}
-      {loading ? (
-        <View style={styles.skeletonContainer}>
+      {showSkeleton ? (
+        <View
+          style={[
+            styles.skeletonContainer,
+            {
+              paddingHorizontal: skeletonLayout.padding,
+            },
+          ]}
+        >
           {Array.from({ length: 4 }).map((_, row) => (
-            <View key={row} style={styles.skeletonRow}>
+            <View
+              key={row}
+              style={[styles.skeletonRow, { marginBottom: skeletonLayout.gap }]}
+            >
               {Array.from({ length: 2 }).map((_, col) => (
-                <View key={col} style={styles.skeletonCardWrapper}>
+                <View
+                  key={col}
+                  style={[
+                    styles.skeletonCardWrapper,
+                    { marginHorizontal: skeletonLayout.gap / 4 },
+                  ]}
+                >
                   <SkeletonCard />
                 </View>
               ))}
@@ -177,17 +217,12 @@ export default function HomeScreen() {
           onToggleFavorite={handleToggleFavorite}
           bottomPad={140}
           refreshing={refreshing}
-          onRefresh={() => {
-            void handleRefresh();
-          }}
+          onRefresh={handleRefresh}
         />
       )}
 
       {/* Navigation drawer */}
-      <NavigationDrawer
-        visible={drawerVisible}
-        onClose={() => setDrawerVisible(false)}
-      />
+      <NavigationDrawer visible={drawerVisible} onClose={handleCloseDrawer} />
     </SafeAreaView>
   );
 }
@@ -232,17 +267,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   skeletonContainer: {
-    paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 140,
   },
   skeletonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12,
   },
   skeletonCardWrapper: {
     flex: 1,
-    marginHorizontal: 6,
   },
 });

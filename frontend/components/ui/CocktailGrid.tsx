@@ -1,24 +1,37 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
   FlatList,
-  Dimensions,
+  useWindowDimensions,
   RefreshControl,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_GAP = 12;
-const HORIZONTAL_PADDING = 20;
-const CARD_WIDTH = (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - CARD_GAP) / 2;
-
 // Blurhash placeholder - a nice gray gradient
 const PLACEHOLDER_BLURHASH = 'L6PZfSi_.AyE_3t7t7R**0o#DgR4';
+
+// Base dimensions (designed for ~375px width - iPhone SE/mini)
+const BASE_WIDTH = 375;
+const BASE_PADDING = 16;
+const BASE_GAP = 10;
+const BASE_FONT_SIZE = 13;
+const BASE_CARD_PADDING = 10;
+const BASE_HEART_SIZE = 28;
+const BASE_HEART_ICON = 18;
+const BASE_BORDER_RADIUS = 14;
+
+// Minimum dimensions to prevent things getting too tiny
+const MIN_PADDING = 10;
+const MIN_GAP = 6;
+const MIN_FONT_SIZE = 11;
+const MIN_CARD_PADDING = 6;
+const MIN_HEART_SIZE = 24;
+const MIN_HEART_ICON = 14;
 
 export type CocktailItem = {
   id: string | number;
@@ -36,22 +49,101 @@ type Props = {
   onRefresh?: () => void;
 };
 
-// Memoized card component to prevent unnecessary re-renders
+type CardDimensions = {
+  cardWidth: number;
+  padding: number;
+  gap: number;
+  fontSize: number;
+  cardPadding: number;
+  heartSize: number;
+  heartIcon: number;
+  borderRadius: number;
+};
+
+// Calculate responsive dimensions based on screen width
+function useResponsiveDimensions(): CardDimensions {
+  const { width } = useWindowDimensions();
+
+  return useMemo(() => {
+    // Scale factor based on screen width (1.0 at 375px)
+    const scale = Math.min(width / BASE_WIDTH, 1.2); // Cap at 1.2x for large screens
+    const smallScale = Math.max(0.7, scale); // Floor at 0.7x for tiny screens
+
+    // Calculate scaled dimensions with min/max bounds
+    const padding = Math.max(MIN_PADDING, Math.round(BASE_PADDING * smallScale));
+    const gap = Math.max(MIN_GAP, Math.round(BASE_GAP * smallScale));
+    const fontSize = Math.max(MIN_FONT_SIZE, Math.round(BASE_FONT_SIZE * smallScale));
+    const cardPadding = Math.max(MIN_CARD_PADDING, Math.round(BASE_CARD_PADDING * smallScale));
+    const heartSize = Math.max(MIN_HEART_SIZE, Math.round(BASE_HEART_SIZE * smallScale));
+    const heartIcon = Math.max(MIN_HEART_ICON, Math.round(BASE_HEART_ICON * smallScale));
+    const borderRadius = Math.round(BASE_BORDER_RADIUS * smallScale);
+
+    // Card width: (screen - 2*padding - gap) / 2
+    const cardWidth = Math.floor((width - padding * 2 - gap) / 2);
+
+    return {
+      cardWidth,
+      padding,
+      gap,
+      fontSize,
+      cardPadding,
+      heartSize,
+      heartIcon,
+      borderRadius,
+    };
+  }, [width]);
+}
+
+// Memoized card component with dynamic dimensions
 const CocktailCard = React.memo(function CocktailCard({
   item,
   onPress,
   onToggleFavorite,
+  dimensions,
 }: {
   item: CocktailItem;
   onPress: () => void;
   onToggleFavorite?: () => void;
+  dimensions: CardDimensions;
 }) {
+  const cardStyle = useMemo(
+    () => ({
+      width: dimensions.cardWidth,
+      borderRadius: dimensions.borderRadius,
+    }),
+    [dimensions.cardWidth, dimensions.borderRadius],
+  );
+
+  const heartBtnStyle = useMemo(
+    () => ({
+      width: dimensions.heartSize,
+      height: dimensions.heartSize,
+      borderRadius: dimensions.heartSize / 2,
+      top: Math.max(4, dimensions.cardPadding - 2),
+      right: Math.max(4, dimensions.cardPadding - 2),
+    }),
+    [dimensions.heartSize, dimensions.cardPadding],
+  );
+
+  const nameStyle = useMemo(
+    () => ({
+      fontSize: dimensions.fontSize,
+      padding: dimensions.cardPadding,
+      paddingTop: dimensions.cardPadding - 2,
+    }),
+    [dimensions.fontSize, dimensions.cardPadding],
+  );
+
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={({ pressed }) => [
+        styles.card,
+        cardStyle,
+        pressed && styles.cardPressed,
+      ]}
     >
-      <View style={styles.imageContainer}>
+      <View style={[styles.imageContainer, { borderRadius: dimensions.borderRadius }]}>
         <Image
           source={{ uri: item.thumbUrl || undefined }}
           style={styles.image}
@@ -70,19 +162,19 @@ const CocktailCard = React.memo(function CocktailCard({
               e.stopPropagation();
               onToggleFavorite();
             }}
-            style={styles.favoriteButton}
+            style={[styles.favoriteButton, heartBtnStyle]}
             hitSlop={8}
           >
             <Ionicons
               name={item.isFavorite ? 'heart' : 'heart-outline'}
-              size={20}
+              size={dimensions.heartIcon}
               color={item.isFavorite ? '#ff4d6d' : Colors.textPrimary}
             />
           </Pressable>
         )}
       </View>
 
-      <Text style={styles.name} numberOfLines={2}>
+      <Text style={[styles.name, nameStyle]} numberOfLines={2}>
         {item.name}
       </Text>
     </Pressable>
@@ -97,6 +189,8 @@ export default function CocktailGrid({
   refreshing = false,
   onRefresh,
 }: Props) {
+  const dimensions = useResponsiveDimensions();
+
   const renderItem = useCallback(
     ({ item }: { item: CocktailItem }) => (
       <CocktailCard
@@ -107,14 +201,32 @@ export default function CocktailGrid({
             ? () => onToggleFavorite(item.id, !item.isFavorite)
             : undefined
         }
+        dimensions={dimensions}
       />
     ),
-    [onPressItem, onToggleFavorite],
+    [onPressItem, onToggleFavorite, dimensions],
   );
 
   const keyExtractor = useCallback(
     (item: CocktailItem) => item.id.toString(),
     [],
+  );
+
+  const containerStyle = useMemo(
+    () => ({
+      paddingHorizontal: dimensions.padding,
+      paddingTop: 8,
+      paddingBottom: bottomPad,
+    }),
+    [dimensions.padding, bottomPad],
+  );
+
+  const rowStyle = useMemo(
+    () => ({
+      justifyContent: 'space-between' as const,
+      marginBottom: dimensions.gap,
+    }),
+    [dimensions.gap],
   );
 
   return (
@@ -123,8 +235,8 @@ export default function CocktailGrid({
       renderItem={renderItem}
       keyExtractor={keyExtractor}
       numColumns={2}
-      columnWrapperStyle={styles.row}
-      contentContainerStyle={[styles.container, { paddingBottom: bottomPad }]}
+      columnWrapperStyle={rowStyle}
+      contentContainerStyle={containerStyle}
       showsVerticalScrollIndicator={false}
       // Performance optimizations
       removeClippedSubviews={true}
@@ -147,18 +259,8 @@ export default function CocktailGrid({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: HORIZONTAL_PADDING,
-    paddingTop: 8,
-  },
-  row: {
-    justifyContent: 'space-between',
-    marginBottom: CARD_GAP,
-  },
   card: {
-    width: CARD_WIDTH,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
     overflow: 'hidden',
   },
   cardPressed: {
@@ -169,6 +271,7 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1,
     backgroundColor: Colors.buttonBackground,
+    overflow: 'hidden',
   },
   image: {
     width: '100%',
@@ -176,20 +279,12 @@ const styles = StyleSheet.create({
   },
   favoriteButton: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
     backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   name: {
-    fontSize: 14,
     fontWeight: '600',
     color: Colors.textPrimary,
-    padding: 12,
-    paddingTop: 10,
   },
 });
