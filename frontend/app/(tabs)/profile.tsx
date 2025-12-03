@@ -16,7 +16,8 @@ import { useAuth } from '@/app/lib/AuthContext';
 import { useFavorites } from '@/app/lib/useFavorites';
 
 // Default avatar when user hasn't set one
-const DEFAULT_AVATAR = 'https://api.dicebear.com/7.x/avataaars/png?seed=default';
+const DEFAULT_AVATAR =
+  'https://api.dicebear.com/7.x/avataaars/png?seed=default';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -25,7 +26,8 @@ export default function ProfileScreen() {
 
   // Use real user data from auth context
   const avatarUrl = user?.avatar_url || DEFAULT_AVATAR;
-  const displayName = user?.display_name || user?.email?.split('@')[0] || 'User';
+  const displayName =
+    user?.display_name || user?.email?.split('@')[0] || 'User';
   const email = user?.email || '';
 
   return (
@@ -45,10 +47,7 @@ export default function ProfileScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Image
-            source={{ uri: avatarUrl }}
-            style={styles.avatar}
-          />
+          <Image source={{ uri: avatarUrl }} style={styles.avatar} />
           <Text style={styles.name}>{displayName}</Text>
           <Text style={styles.email}>{email}</Text>
 
@@ -79,12 +78,14 @@ export default function ProfileScreen() {
           <View style={styles.rowSpace}>
             <Text style={styles.sectionTitle}>Favorite Drinks</Text>
             {favorites && favorites.length > 0 && (
-              <TouchableOpacity onPress={() => router.push('/(tabs)/favorites')}>
+              <TouchableOpacity
+                onPress={() => router.push('/(tabs)/favorites')}
+              >
                 <Text style={styles.link}>See all</Text>
               </TouchableOpacity>
             )}
           </View>
-          
+
           {!favorites || favorites.length === 0 ? (
             <Text style={styles.emptyText}>
               No favorites yet. Start exploring drinks!
@@ -95,13 +96,17 @@ export default function ProfileScreen() {
                 <TouchableOpacity
                   key={fav.id}
                   style={styles.favoriteThumb}
-                  onPress={() => router.push({
-                    pathname: '/drink/[drinkId]',
-                    params: { drinkId: fav.id, name: fav.name }
-                  })}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/drink/[drinkId]',
+                      params: { drinkId: fav.id, name: fav.name },
+                    })
+                  }
                 >
                   <Image
-                    source={{ uri: fav.thumbUrl || 'https://via.placeholder.com/60' }}
+                    source={{
+                      uri: fav.thumbUrl || 'https://via.placeholder.com/60',
+                    }}
                     style={styles.favoriteImage}
                   />
                   <Text style={styles.favoriteName} numberOfLines={1}>
@@ -128,7 +133,7 @@ const styles = StyleSheet.create({
   },
   container: { flex: 1 },
   content: { padding: 16, paddingTop: 44 },
-  
+
   // Header
   header: { alignItems: 'center', marginBottom: 24 },
   avatar: {
@@ -186,22 +191,22 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 12,
   },
-  sectionTitle: { 
-    color: Colors.textPrimary, 
-    fontSize: 16, 
-    fontWeight: '700' 
+  sectionTitle: {
+    color: Colors.textPrimary,
+    fontSize: 16,
+    fontWeight: '700',
   },
   rowSpace: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  link: { 
-    color: Colors.textSecondary, 
-    fontWeight: '700' 
+  link: {
+    color: Colors.textSecondary,
+    fontWeight: '700',
   },
-  emptyText: { 
-    color: Colors.textSecondary, 
+  emptyText: {
+    color: Colors.textSecondary,
     marginTop: 12,
     fontSize: 14,
   },

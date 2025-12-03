@@ -68,10 +68,7 @@ export default function ProfileSetupScreen() {
     ]).start();
   };
 
-  const displayNameTrimmed = useMemo(
-    () => displayName.trim(),
-    [displayName],
-  );
+  const displayNameTrimmed = useMemo(() => displayName.trim(), [displayName]);
   const isValid = useMemo(
     () => displayNameTrimmed.length >= 1 && displayNameTrimmed.length <= 100,
     [displayNameTrimmed],
@@ -108,7 +105,7 @@ export default function ProfileSetupScreen() {
 
       // Refresh user data in context - this will update needsOnboarding
       await refreshUser();
-      
+
       // AuthGuard will automatically redirect to home now that onboarding is complete
     } catch (e: any) {
       setError(e?.message || 'Something went wrong');
@@ -118,7 +115,7 @@ export default function ProfileSetupScreen() {
     }
   };
 
-  const handleSkip = async () => {
+  const handleSkip = () => {
     Alert.alert(
       'Skip profile setup?',
       'You can always update your profile later in settings.',
@@ -126,23 +123,26 @@ export default function ProfileSetupScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Skip',
-          onPress: async () => {
-            setBusy(true);
-            try {
-              await fetch(`${API_BASE}/profile/skip-onboarding`, {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${accessToken}`,
-                },
-              });
-              await refreshUser();
-              // AuthGuard will redirect
-            } catch {
-              // Force redirect even if API fails
-              router.replace('/(tabs)/home');
-            } finally {
-              setBusy(false);
-            }
+          onPress: () => {
+            // run the async work in a fire-and-forget IIFE
+            void (async () => {
+              setBusy(true);
+              try {
+                await fetch(`${API_BASE}/profile/skip-onboarding`, {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                  },
+                });
+                await refreshUser();
+                // AuthGuard will redirect
+              } catch {
+                // Force redirect even if API fails
+                router.replace('/(tabs)/home');
+              } finally {
+                setBusy(false);
+              }
+            })();
           },
         },
       ],
@@ -158,16 +158,11 @@ export default function ProfileSetupScreen() {
         <Animated.View style={{ transform: [{ translateX: shakeX }] }}>
           <Text style={styles.title}>Set up your profile</Text>
         </Animated.View>
-        <Text style={styles.subtitle}>
-          Let others know who you are
-        </Text>
+        <Text style={styles.subtitle}>Let others know who you are</Text>
 
         {/* Avatar Selection */}
         <View style={styles.avatarSection}>
-          <Image
-            source={{ uri: selectedAvatar }}
-            style={styles.mainAvatar}
-          />
+          <Image source={{ uri: selectedAvatar }} style={styles.mainAvatar} />
           <Text style={styles.avatarLabel}>Choose an avatar</Text>
           <View style={styles.avatarGrid}>
             {AVATAR_OPTIONS.map((url) => (
@@ -199,9 +194,7 @@ export default function ProfileSetupScreen() {
             returnKeyType="done"
             onSubmitEditing={() => void handleComplete()}
           />
-          <Text style={styles.charCount}>
-            {displayNameTrimmed.length}/100
-          </Text>
+          <Text style={styles.charCount}>{displayNameTrimmed.length}/100</Text>
         </View>
 
         {error && <Text style={styles.error}>{error}</Text>}

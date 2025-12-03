@@ -12,7 +12,7 @@ import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, needsOnboarding } = useAuth();
-  const segments = useSegments();
+  const segments = useSegments() as string[];
   const navigationState = useRootNavigationState();
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const inOnboarding = segments[1] === 'profile-setup';
 
     if (!isAuthenticated) {
-      // Not logged in - redirect to login 
+      // Not logged in - redirect to login
       if (!inAuthGroup) {
         router.replace('/(auth)/login');
       }
@@ -39,7 +39,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         router.replace('/(tabs)/home');
       }
     }
-  }, [isAuthenticated, isLoading, needsOnboarding, segments, navigationState?.key]);
+  }, [
+    isAuthenticated,
+    isLoading,
+    needsOnboarding,
+    segments,
+    navigationState?.key,
+  ]);
 
   // Show loading spinner while checking auth state
   if (isLoading) {

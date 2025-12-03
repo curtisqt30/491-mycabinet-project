@@ -43,15 +43,16 @@ export default function ProfileEditScreen() {
   // Initialize form state from current user data
   const [displayName, setDisplayName] = useState(user?.display_name || '');
   const [selectedAvatar, setSelectedAvatar] = useState(
-    user?.avatar_url || AVATAR_OPTIONS[0]
+    user?.avatar_url || AVATAR_OPTIONS[0],
   );
   const [saving, setSaving] = useState(false);
 
   const displayNameTrimmed = displayName.trim();
-  const displayNameValid = displayNameTrimmed.length >= 1 && displayNameTrimmed.length <= 100;
-  
+  const displayNameValid =
+    displayNameTrimmed.length >= 1 && displayNameTrimmed.length <= 100;
+
   // Check if anything changed
-  const hasChanges = 
+  const hasChanges =
     displayNameTrimmed !== (user?.display_name || '') ||
     selectedAvatar !== (user?.avatar_url || AVATAR_OPTIONS[0]);
 
@@ -82,7 +83,7 @@ export default function ProfileEditScreen() {
       await refreshUser();
 
       Alert.alert('Success', 'Your profile has been updated!', [
-        { text: 'OK', onPress: () => router.back() }
+        { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Something went wrong');
@@ -120,10 +121,7 @@ export default function ProfileEditScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Profile Picture</Text>
           <View style={styles.avatarSection}>
-            <Image
-              source={{ uri: selectedAvatar }}
-              style={styles.mainAvatar}
-            />
+            <Image source={{ uri: selectedAvatar }} style={styles.mainAvatar} />
             <View style={styles.avatarGrid}>
               {AVATAR_OPTIONS.map((url) => (
                 <TouchableOpacity
@@ -156,9 +154,13 @@ export default function ProfileEditScreen() {
           />
           <View style={styles.inputFooter}>
             {!displayNameValid && displayName.length > 0 && (
-              <Text style={styles.errorText}>Name is required (1-100 chars)</Text>
+              <Text style={styles.errorText}>
+                Name is required (1-100 chars)
+              </Text>
             )}
-            <Text style={styles.charCount}>{displayNameTrimmed.length}/100</Text>
+            <Text style={styles.charCount}>
+              {displayNameTrimmed.length}/100
+            </Text>
           </View>
         </View>
 
@@ -323,5 +325,16 @@ const styles = StyleSheet.create({
   // Actions
   actions: {
     marginTop: 16,
+  },
+
+  // Cancel button styles
+  cancelButton: {
+    marginTop: 12,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  cancelText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
   },
 });

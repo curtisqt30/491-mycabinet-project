@@ -15,12 +15,13 @@ import { useFavorites } from '@/app/lib/useFavorites';
 import { useAuth } from '@/app/lib/AuthContext';
 
 // Default avatar when user hasn't set one
-const DEFAULT_AVATAR = 'https://api.dicebear.com/7.x/avataaars/png?seed=default';
+const DEFAULT_AVATAR =
+  'https://api.dicebear.com/7.x/avataaars/png?seed=default';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  
+
   const [drinks, setDrinks] = useState<CocktailItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -29,7 +30,8 @@ export default function HomeScreen() {
 
   // Use real user data from auth context
   const avatarUrl = user?.avatar_url || DEFAULT_AVATAR;
-  const displayName = user?.display_name || user?.email?.split('@')[0] || 'User';
+  const displayName =
+    user?.display_name || user?.email?.split('@')[0] || 'User';
 
   const favIds = React.useMemo(
     () => new Set((favItems ?? []).map((f) => f.id)),
@@ -141,10 +143,7 @@ export default function HomeScreen() {
         hitSlop={12}
         style={[styles.profileWrap, { top: Math.max(14, insets.top) }]}
       >
-        <Image
-          source={{ uri: avatarUrl }}
-          style={styles.profileImage}
-        />
+        <Image source={{ uri: avatarUrl }} style={styles.profileImage} />
       </Pressable>
 
       {/* Header */}
