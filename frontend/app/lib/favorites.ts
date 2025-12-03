@@ -34,7 +34,7 @@ export function clearFavoritesUser() {
 // Clear all local data for the current user
 export async function clearUserCache(): Promise<void> {
   if (!currentUserId) return;
-  
+
   const key = getKey();
   await AsyncStorage.removeItem(key);
   emit();
@@ -44,7 +44,7 @@ export async function clearUserCache(): Promise<void> {
 export async function clearAllFavoritesCache(): Promise<void> {
   try {
     const allKeys = await AsyncStorage.getAllKeys();
-    const favoriteKeys = allKeys.filter(k => k.startsWith('favorites:'));
+    const favoriteKeys = allKeys.filter((k) => k.startsWith('favorites:'));
     if (favoriteKeys.length > 0) {
       await AsyncStorage.multiRemove(favoriteKeys);
     }

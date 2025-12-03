@@ -49,10 +49,7 @@ const CocktailCard = React.memo(function CocktailCard({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        pressed && styles.cardPressed,
-      ]}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
     >
       <View style={styles.imageContainer}>
         <Image
@@ -65,7 +62,7 @@ const CocktailCard = React.memo(function CocktailCard({
           cachePolicy="memory-disk"
           recyclingKey={item.id.toString()}
         />
-        
+
         {/* Favorite button overlay */}
         {onToggleFavorite && (
           <Pressable
@@ -84,7 +81,7 @@ const CocktailCard = React.memo(function CocktailCard({
           </Pressable>
         )}
       </View>
-      
+
       <Text style={styles.name} numberOfLines={2}>
         {item.name}
       </Text>
@@ -112,12 +109,12 @@ export default function CocktailGrid({
         }
       />
     ),
-    [onPressItem, onToggleFavorite]
+    [onPressItem, onToggleFavorite],
   );
 
   const keyExtractor = useCallback(
     (item: CocktailItem) => item.id.toString(),
-    []
+    [],
   );
 
   return (
@@ -127,10 +124,7 @@ export default function CocktailGrid({
       keyExtractor={keyExtractor}
       numColumns={2}
       columnWrapperStyle={styles.row}
-      contentContainerStyle={[
-        styles.container,
-        { paddingBottom: bottomPad },
-      ]}
+      contentContainerStyle={[styles.container, { paddingBottom: bottomPad }]}
       showsVerticalScrollIndicator={false}
       // Performance optimizations
       removeClippedSubviews={true}

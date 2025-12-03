@@ -208,7 +208,7 @@ export async function fetchCurrentUser(accessToken: string): Promise<User> {
   }
 
   const data = await res.json();
-  
+
   // Ensure onboarding_complete has a default value
   return {
     ...data,

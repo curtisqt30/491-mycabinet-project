@@ -91,7 +91,7 @@ export function useFavorites() {
     remove,
     toggle,
     isFavorite,
-    clearCache,      // Clear current user's favorites
-    clearAllCache,   // Clear all favorites (all users)
+    clearCache, // Clear current user's favorites
+    clearAllCache, // Clear all favorites (all users)
   };
 }

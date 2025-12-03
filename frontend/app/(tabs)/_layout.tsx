@@ -6,7 +6,15 @@ import BottomNav from '@/components/ui/BottomNav';
 // Check if the path is a user profile path
 const isProfilePath = (p: string) => {
   if (!p || p === '/') return false;
-  const staticPrefixes = ['/home', '/cabinet', '/search', '/settings', '/favorites', '/assistant', '/profile'];
+  const staticPrefixes = [
+    '/home',
+    '/cabinet',
+    '/search',
+    '/settings',
+    '/favorites',
+    '/assistant',
+    '/profile',
+  ];
   if (staticPrefixes.some((s) => p.startsWith(s))) return false;
   return p.split('/').length === 2;
 };
@@ -21,7 +29,10 @@ const TABS = [
   {
     icon: 'person-outline',
     route: '/profile',
-    match: (p: string) => isProfilePath(p) || p.startsWith('/user-profile') || p.startsWith('/profile'),
+    match: (p: string) =>
+      isProfilePath(p) ||
+      p.startsWith('/user-profile') ||
+      p.startsWith('/profile'),
   },
 ];
 

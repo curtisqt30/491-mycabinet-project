@@ -136,7 +136,10 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
       <View style={styles.container}>
         {/* Animated backdrop */}
         <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={handleBackdropPress}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={handleBackdropPress}
+          >
             <BlurView
               intensity={20}
               style={StyleSheet.absoluteFill}
