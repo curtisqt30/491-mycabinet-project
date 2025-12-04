@@ -23,7 +23,8 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import BackButton from '@/components/ui/BackButton';
+import MenuButton from '@/components/ui/MenuButton';
+import NavigationDrawer from '@/components/ui/NavigationDrawer';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import { normalizeIngredient } from '../utils/normalize';
 import { ingredientImageUrl } from '../utils/cocktaildb';
@@ -96,6 +97,9 @@ export default function MyIngredientsScreen() {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [addQuery, setAddQuery] = useState('');
   const [qty, setQty] = useState(1); // stepper in Add modal (1 = full)
+
+  // Navigation drawer state
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
   /** ----- Persistence ----- */
   useEffect(() => {
@@ -218,7 +222,7 @@ export default function MyIngredientsScreen() {
       const removed = prev[idx];
       const next = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
       setToast({
-        text: `Deleted “${removed.name}”`,
+        text: `Deleted "${removed.name}"`,
         onUndo: () => {
           setIngredients((prev2) => {
             const exists = prev2.some((x) => x.id === removed.id);
@@ -245,7 +249,7 @@ export default function MyIngredientsScreen() {
       prev.map((i) => (i.id === id ? { ...i, owned: false } : i)),
     );
     setToast({
-      text: `Removed “${removed.name}” from Cabinet`,
+      text: `Removed "${removed.name}" from Cabinet`,
       onUndo: () => {
         setIngredients((prev) =>
           prev.map((i) => (i.id === id ? { ...i, owned: true } : i)),
@@ -262,7 +266,7 @@ export default function MyIngredientsScreen() {
       prev.map((i) => (i.id === id ? { ...i, wanted: false } : i)),
     );
     setToast({
-      text: `Removed “${removed.name}” from Shopping`,
+      text: `Removed "${removed.name}" from Shopping`,
       onUndo: () => {
         setIngredients((prev) =>
           prev.map((i) => (i.id === id ? { ...i, wanted: true } : i)),
@@ -290,7 +294,7 @@ export default function MyIngredientsScreen() {
       ),
     );
     setToast({
-      text: `Marked “${it.name}” as purchased`,
+      text: `Marked "${it.name}" as purchased`,
       onUndo: () => {
         setIngredients((prev) =>
           prev.map((i) =>
@@ -387,6 +391,15 @@ export default function MyIngredientsScreen() {
         clearTimeout(toastTimerRef.current as unknown as number);
     };
   }, [toast]);
+
+  // Menu handlers
+  const handleMenuPress = useCallback(() => {
+    setDrawerVisible(true);
+  }, []);
+
+  const handleCloseDrawer = useCallback(() => {
+    setDrawerVisible(false);
+  }, []);
 
   /** ----- Renderers ----- */
   const renderCabinetItem = ({ item }: { item: Ingredient }) => (
@@ -560,13 +573,13 @@ export default function MyIngredientsScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Back button overlay like Favorites */}
-      <View style={[styles.backWrap, { top: Math.max(14, insets.top) }]}>
-        <BackButton />
+      {/* Menu button overlay */}
+      <View style={[styles.menuWrap, { top: Math.max(14, insets.top) }]}>
+        <MenuButton onPress={handleMenuPress} />
       </View>
 
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        {/* Centered page header like Favorites */}
+        {/* Centered page header */}
         <View style={[styles.headerWrap, { paddingTop: insets.top + 56 }]}>
           <Text style={styles.title}>My Cabinet</Text>
           {loading ? (
@@ -818,6 +831,9 @@ export default function MyIngredientsScreen() {
           </View>
         </Modal>
       </SafeAreaView>
+
+      {/* Navigation drawer */}
+      <NavigationDrawer visible={drawerVisible} onClose={handleCloseDrawer} />
     </>
   );
 }
@@ -832,7 +848,7 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   list: { flex: 1, overflow: 'visible' },
   headerWrap: { backgroundColor: Colors.background, alignItems: 'center' },
-  backWrap: { position: 'absolute', left: 14, zIndex: 10 },
+  menuWrap: { position: 'absolute', left: 14, zIndex: 10 },
   title: {
     fontSize: 28,
     fontWeight: '800',

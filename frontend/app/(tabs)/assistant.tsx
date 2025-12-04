@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import BackButton from '@/components/ui/BackButton';
+import MenuButton from '@/components/ui/MenuButton';
+import NavigationDrawer from '@/components/ui/NavigationDrawer';
 
 type Message = {
   id: string;
@@ -71,6 +72,9 @@ export default function AssistantScreen() {
   const dot2Anim = useRef(new Animated.Value(0)).current;
   const dot3Anim = useRef(new Animated.Value(0)).current;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Navigation drawer state
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
   // Load messages from AsyncStorage on mount
   useEffect(() => {
@@ -302,6 +306,15 @@ export default function AssistantScreen() {
     );
   };
 
+  // Menu handlers
+  const handleMenuPress = useCallback(() => {
+    setDrawerVisible(true);
+  }, []);
+
+  const handleCloseDrawer = useCallback(() => {
+    setDrawerVisible(false);
+  }, []);
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -311,9 +324,9 @@ export default function AssistantScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        {/* Back button overlay */}
-        <View style={[styles.backWrap, { top: Math.max(14, insets.top) }]}>
-          <BackButton />
+        {/* Menu button overlay */}
+        <View style={[styles.menuWrap, { top: Math.max(14, insets.top) }]}>
+          <MenuButton onPress={handleMenuPress} />
         </View>
 
         {/* Fixed header */}
@@ -423,6 +436,9 @@ export default function AssistantScreen() {
         }}
         onCancel={() => setShowClearDialog(false)}
       />
+
+      {/* Navigation drawer */}
+      <NavigationDrawer visible={drawerVisible} onClose={handleCloseDrawer} />
     </>
   );
 }
@@ -432,7 +448,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  backWrap: {
+  menuWrap: {
     position: 'absolute',
     left: 14,
     zIndex: 10,

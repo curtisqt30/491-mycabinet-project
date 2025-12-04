@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Platform, UIManager } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import BackButton from '@/components/ui/BackButton';
+import MenuButton from '@/components/ui/MenuButton';
+import NavigationDrawer from '@/components/ui/NavigationDrawer';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import CocktailGrid, { type CocktailItem } from '@/components/ui/CocktailGrid';
 import { useFavorites } from '@/app/lib/useFavorites';
@@ -17,6 +18,7 @@ if (
 export default function FavoritesScreen() {
   const insets = useSafeAreaInsets();
   const { items, busy, toggle } = useFavorites(); // persisted via AsyncStorage
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
   const data: CocktailItem[] = (items ?? []).map((f) => ({
     id: f.id,
@@ -48,11 +50,19 @@ export default function FavoritesScreen() {
     });
   };
 
+  const handleMenuPress = useCallback(() => {
+    setDrawerVisible(true);
+  }, []);
+
+  const handleCloseDrawer = useCallback(() => {
+    setDrawerVisible(false);
+  }, []);
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={[styles.backWrap, { top: Math.max(14, insets.top) }]}>
-        <BackButton />
+      <View style={[styles.menuWrap, { top: Math.max(14, insets.top) }]}>
+        <MenuButton onPress={handleMenuPress} />
       </View>
 
       <View style={[styles.headerWrap, { paddingTop: insets.top + 56 }]}>
@@ -71,13 +81,16 @@ export default function FavoritesScreen() {
         onToggleFavorite={handleToggleFavorite}
         bottomPad={140}
       />
+
+      {/* Navigation drawer */}
+      <NavigationDrawer visible={drawerVisible} onClose={handleCloseDrawer} />
     </>
   );
 }
 
 const styles = StyleSheet.create({
   headerWrap: { backgroundColor: Colors.background, alignItems: 'center' },
-  backWrap: { position: 'absolute', left: 14, zIndex: 10 },
+  menuWrap: { position: 'absolute', left: 14, zIndex: 10 },
   title: {
     fontSize: 28,
     fontWeight: '800',

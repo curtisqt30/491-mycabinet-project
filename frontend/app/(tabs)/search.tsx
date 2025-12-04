@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from 'react';
 import {
   View,
   Text,
@@ -17,7 +23,8 @@ import {
   useSafeAreaInsets,
   SafeAreaView,
 } from 'react-native-safe-area-context';
-import BackButton from '@/components/ui/BackButton';
+import MenuButton from '@/components/ui/MenuButton';
+import NavigationDrawer from '@/components/ui/NavigationDrawer';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import type { Cocktail } from '../lib/cocktails';
 import {
@@ -173,6 +180,9 @@ export default function SearchScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notFoundTerm, setNotFoundTerm] = useState<string | null>(null);
 
+  // Navigation drawer state
+  const [drawerVisible, setDrawerVisible] = useState(false);
+
   // Favorites
   const { items: favItems, toggle } = useFavorites();
   const favIds = useMemo(
@@ -242,7 +252,7 @@ export default function SearchScreen() {
             // single token
             byName = await searchByName(trimmed);
 
-            // For generic base spirits (“gin”, “rum”, …), ingredient filter is too broad.
+            // For generic base spirits ("gin", "rum", …), ingredient filter is too broad.
             if (!isGenericOneWord) {
               byIng = await filterByIngredient(trimmed);
             }
@@ -328,13 +338,22 @@ export default function SearchScreen() {
   const toPreview = (u?: string | null) =>
     u ? (u.endsWith('/preview') ? u : `${u}/preview`) : undefined;
 
+  // Menu handlers
+  const handleMenuPress = useCallback(() => {
+    setDrawerVisible(true);
+  }, []);
+
+  const handleCloseDrawer = useCallback(() => {
+    setDrawerVisible(false);
+  }, []);
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Back button overlay */}
-      <View style={[styles.backWrap, { top: Math.max(14, insets.top) }]}>
-        <BackButton />
+      {/* Menu button overlay */}
+      <View style={[styles.menuWrap, { top: Math.max(14, insets.top) }]}>
+        <MenuButton onPress={handleMenuPress} />
       </View>
 
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -368,7 +387,7 @@ export default function SearchScreen() {
           {/* Not found banner */}
           {!!notFoundTerm && !loading && !error && (
             <Text style={styles.banner}>
-              “{notFoundTerm}” not found — showing popular drinks instead
+              {`"${notFoundTerm}" not found — showing popular drinks instead`}
             </Text>
           )}
         </View>
@@ -458,6 +477,9 @@ export default function SearchScreen() {
           />
         </View>
       </SafeAreaView>
+
+      {/* Navigation drawer */}
+      <NavigationDrawer visible={drawerVisible} onClose={handleCloseDrawer} />
     </>
   );
 }
@@ -469,7 +491,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
-  backWrap: { position: 'absolute', left: 14, zIndex: 10 },
+  menuWrap: { position: 'absolute', left: 14, zIndex: 10 },
   title: {
     fontSize: 28,
     fontWeight: '800',
