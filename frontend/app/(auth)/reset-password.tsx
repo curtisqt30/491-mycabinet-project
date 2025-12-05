@@ -4,6 +4,9 @@ import { Link, router } from 'expo-router';
 import FormButton from '@/components/ui/FormButton';
 import AuthInput from '@/components/ui/AuthInput';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import BackButton from '@/components/ui/BackButton';
+
 
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
@@ -13,6 +16,7 @@ const API_BASE =
 export default function ResetPasswordScreen() {
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const isValidEmail = (e: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
@@ -45,6 +49,9 @@ export default function ResetPasswordScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={[styles.backWrap, { top: Math.max(14, insets.top) }]}>
+        <BackButton />
+      </View>
       <Text style={styles.title}>Reset your password</Text>
       <Text style={styles.subtitle}>
         Enter the email associated with your account and we’ll send you a reset
@@ -100,4 +107,9 @@ const styles = StyleSheet.create({
   },
   backText: { marginTop: 14, color: Colors.textSecondary, fontSize: 14 },
   link: { color: Colors.link },
+  backWrap: {
+    position: 'absolute',
+    left: 14,
+    zIndex: 10,
+  },
 });

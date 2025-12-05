@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TextInput, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import FormButton from '@/components/ui/FormButton';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import BackButton from '@/components/ui/BackButton';
 
 const CODE_LEN = 6;
 
@@ -16,6 +18,7 @@ export default function VerifyResetCodeScreen() {
   const [codes, setCodes] = useState<string[]>(Array(CODE_LEN).fill(''));
   const inputs = useRef<(TextInput | null)[]>([]);
   const codeString = useMemo(() => codes.join(''), [codes]);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     inputs.current[0]?.focus();
@@ -49,6 +52,9 @@ export default function VerifyResetCodeScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={[styles.backWrap, { top: Math.max(14, insets.top) }]}>
+        <BackButton />
+      </View>
       <Text style={styles.title}>Enter reset code</Text>
       <Text style={styles.subtitle}>
         We sent a 6-digit code to {normalizedEmail || 'your email'}.
@@ -114,5 +120,10 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: Colors.textPrimary,
     backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  backWrap: {
+    position: 'absolute',
+    left: 14,
+    zIndex: 10,
   },
 });
