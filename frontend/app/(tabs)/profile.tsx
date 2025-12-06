@@ -62,7 +62,11 @@ export default function ProfileScreen() {
         onPress={handleSettingsPress}
         hitSlop={8}
       >
-        <Ionicons name="settings-outline" size={26} color={Colors.textPrimary} />
+        <Ionicons
+          name="settings-outline"
+          size={26}
+          color={Colors.textPrimary}
+        />
       </Pressable>
 
       <ScrollView

@@ -17,14 +17,14 @@ const API_BASE =
 // 2. OTP-verified: User came from email verification (verified=true, email, code params)
 export default function ChangePasswordScreen() {
   const { user, accessToken } = useAuth();
-  
+
   // Check if coming from OTP verification flow
   const { verified, email, code } = useLocalSearchParams<{
     verified?: string;
     email?: string;
     code?: string;
   }>();
-  
+
   const isOtpFlow = verified === 'true' && !!email && !!code;
   const normalizedEmail = useMemo(
     () => (email || user?.email || '').toLowerCase().trim(),
@@ -37,15 +37,12 @@ export default function ChangePasswordScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   // Validation checks
-  const passwordValid = useMemo(
-    () => password.length >= 10,
-    [password],
-  );
+  const passwordValid = useMemo(() => password.length >= 10, [password]);
   const passwordsMatch = useMemo(
     () => confirmPassword.length > 0 && password === confirmPassword,
     [password, confirmPassword],
   );
-  
+
   // For direct flow, also require current password
   const currentPasswordValid = useMemo(
     () => isOtpFlow || currentPassword.length >= 1,
@@ -107,10 +104,10 @@ export default function ChangePasswordScreen() {
       Alert.alert('Check your entries', 'Please fix the highlighted issues.');
       return;
     }
-    
+
     try {
       setSubmitting(true);
-      
+
       if (isOtpFlow) {
         await updatePasswordWithOtp();
       } else {
@@ -122,14 +119,16 @@ export default function ChangePasswordScreen() {
       ]);
     } catch (e: any) {
       const message = e?.message || 'Please try again.';
-      
+
       // Provide more specific error messages
       if (message.includes('incorrect') || message.includes('Invalid')) {
         Alert.alert('Update failed', 'Your current password is incorrect.');
       } else if (message.includes('expired')) {
-        Alert.alert('Code expired', 'Your verification code has expired. Please request a new one.', [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
+        Alert.alert(
+          'Code expired',
+          'Your verification code has expired. Please request a new one.',
+          [{ text: 'OK', onPress: () => router.back() }],
+        );
       } else {
         Alert.alert('Update failed', message);
       }
@@ -181,8 +180,8 @@ export default function ChangePasswordScreen() {
         }}
       />
 
-      <PasswordRules 
-        password={password} 
+      <PasswordRules
+        password={password}
         confirmPassword={confirmPassword}
         email={normalizedEmail}
       />

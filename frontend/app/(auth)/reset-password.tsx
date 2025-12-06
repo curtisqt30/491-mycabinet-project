@@ -7,7 +7,6 @@ import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BackButton from '@/components/ui/BackButton';
 
-
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
   process.env.EXPO_PUBLIC_API_BASE ??

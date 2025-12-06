@@ -8,7 +8,6 @@ import type { Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BackButton from '@/components/ui/BackButton';
 
-
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
   process.env.EXPO_PUBLIC_API_BASE ??
