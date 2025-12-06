@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Switch,
   Pressable,
   LayoutAnimation,
   Platform,
@@ -43,22 +42,16 @@ function Chevron({ open }: { open: boolean }) {
 export default function SettingsScreen() {
   const { user, logout, isLoading: authLoading } = useAuth();
 
-  const [push, setPush] = useState(false);
-  const [publicProfile, setPublicProfile] = useState(false);
   const [showDeleteLocal, setShowDeleteLocal] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
-  const [showUnits, setShowUnits] = useState(false);
   const [showChangePw, setShowChangePw] = useState(false);
-  const [useMetric, setUseMetric] = useState(false);
   const [confirmClearCache, setConfirmClearCache] = useState(false);
   const [confirmDeleteAcct, setConfirmDeleteAcct] = useState(false);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const insets = useSafeAreaInsets();
 
-  // Add loading state for async operations
   const [isLoading, setIsLoading] = useState(false);
 
-  // Get user email from auth context
   const getUserEmail = () => {
     return user?.email || 'no-reply@mycabinet.me';
   };
@@ -68,7 +61,6 @@ export default function SettingsScreen() {
     fn((v) => !v);
   };
 
-  // Handler for initiating account deletion with email verification
   const handleDeleteAccountWithVerification = async () => {
     setConfirmDeleteAcct(false);
     setIsLoading(true);
@@ -76,7 +68,6 @@ export default function SettingsScreen() {
     try {
       const userEmail = getUserEmail();
 
-      // Request deletion OTP
       const response = await fetch(`${API_BASE}/auth/otp/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -90,7 +81,6 @@ export default function SettingsScreen() {
         throw new Error('Failed to send verification code');
       }
 
-      // Navigate to verification screen
       router.push(
         `/(stack)/verify-delete?email=${encodeURIComponent(userEmail)}`,
       );
@@ -105,26 +95,22 @@ export default function SettingsScreen() {
     }
   };
 
-  // Handler for direct password change (requires current password)
   const handleChangePasswordDirect = () => {
-    // Navigate directly to change password screen without OTP
     router.push('/(stack)/change-password');
   };
 
-  // Handler for password change with email verification (if user forgot current password)
   const handleChangePasswordWithVerification = async () => {
     setIsLoading(true);
 
     try {
       const userEmail = getUserEmail();
 
-      // Request verification OTP for password change
       const response = await fetch(`${API_BASE}/auth/otp/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: userEmail,
-          intent: 'verify', // Using verify intent for authenticated operations
+          intent: 'verify',
         }),
       });
 
@@ -132,7 +118,6 @@ export default function SettingsScreen() {
         throw new Error('Failed to send verification code');
       }
 
-      // Navigate to verification screen for password change
       router.push(
         `/(stack)/verify-change-password?email=${encodeURIComponent(userEmail)}`,
       );
@@ -151,9 +136,7 @@ export default function SettingsScreen() {
     setConfirmSignOut(false);
 
     try {
-      // Use auth context logout - it handles token clearing and API call
       await logout();
-      // AuthGuard will redirect to login
     } catch {
       Alert.alert('Error', 'Failed to sign out. Please try again.');
     }
@@ -165,59 +148,20 @@ export default function SettingsScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Back button overlay*/}
       <View style={[styles.backWrap, { top: Math.max(14, insets.top) }]}>
         <BackButton />
       </View>
 
-      {/* Fixed header */}
       <View style={[styles.headerWrap, { paddingTop: insets.top + 56 }]}>
         <Text style={styles.title}>Settings</Text>
         {user && <Text style={styles.userEmail}>{user.email}</Text>}
       </View>
 
-      {/* Scrollable content */}
       <ScrollView
         style={styles.container}
         contentContainerStyle={[styles.content, { paddingBottom: 32 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Notifications */}
-        <Text style={styles.section}>Notifications</Text>
-        <Row
-          label="Push Notification"
-          right={
-            <Switch
-              value={push}
-              onValueChange={setPush}
-              trackColor={{
-                false: Colors.textSecondary,
-                true: Colors.textSecondary,
-              }}
-              thumbColor={Colors.textPrimary}
-              ios_backgroundColor={Colors.textSecondary}
-            />
-          }
-        />
-
-        {/* Profile */}
-        <Text style={styles.section}>Profile</Text>
-        <Row
-          label="Public Profile"
-          right={
-            <Switch
-              value={publicProfile}
-              onValueChange={setPublicProfile}
-              trackColor={{
-                false: Colors.textSecondary,
-                true: Colors.textSecondary,
-              }}
-              thumbColor={Colors.textPrimary}
-              ios_backgroundColor={Colors.textSecondary}
-            />
-          }
-        />
-
         {/* Account */}
         <Text style={styles.section}>Account</Text>
         <Row
@@ -250,38 +194,6 @@ export default function SettingsScreen() {
           </View>
         )}
 
-        {/* General */}
-        <Text style={styles.section}>General</Text>
-        <Row
-          label="Alcohol Calculator Units"
-          right={<Chevron open={showUnits} />}
-          onPress={() => toggle(setShowUnits)}
-        />
-        {showUnits && (
-          <View style={[styles.reveal, { flexDirection: 'row', gap: 10 }]}>
-            <Pressable
-              style={[styles.chip, !useMetric && styles.chipActive]}
-              onPress={() => setUseMetric(false)}
-            >
-              <Text
-                style={[styles.chipText, !useMetric && styles.chipTextActive]}
-              >
-                oz (Imperial)
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.chip, useMetric && styles.chipActive]}
-              onPress={() => setUseMetric(true)}
-            >
-              <Text
-                style={[styles.chipText, useMetric && styles.chipTextActive]}
-              >
-                ml (Metric)
-              </Text>
-            </Pressable>
-          </View>
-        )}
-
         <Row
           label="Change Password"
           right={<Chevron open={showChangePw} />}
@@ -306,7 +218,7 @@ export default function SettingsScreen() {
           </View>
         )}
 
-        {/* Bottom Sign Out */}
+        {/* Sign Out */}
         <View style={styles.footer}>
           <FormButton
             title={isBusy ? 'Signing Out...' : 'Sign Out'}
@@ -319,7 +231,6 @@ export default function SettingsScreen() {
         <View style={{ height: 8 }} />
       </ScrollView>
 
-      {/* Confirm dialogs */}
       <ConfirmDialog
         visible={confirmClearCache}
         title="Clear Local Cache"
@@ -409,16 +320,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   reveal: { paddingVertical: 8 },
-  chip: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    backgroundColor: Colors.buttonBackground,
-  },
-  chipActive: { backgroundColor: '#2a2a2a' },
-  chipText: { color: Colors.textSecondary, fontWeight: '600' },
-  chipTextActive: { color: Colors.textPrimary },
-  footer: { marginTop: 16 },
+  footer: { marginTop: 24 },
   helperText: {
     marginTop: 8,
     fontSize: 13,
