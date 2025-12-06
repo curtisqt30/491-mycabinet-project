@@ -1,12 +1,12 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-// Storage keys
-const ACCESS_TOKEN_KEY = 'auth:access_token';
-const REFRESH_TOKEN_KEY = 'auth:refresh_token';
-const TOKEN_EXPIRY_KEY = 'auth:token_expiry';
-const USER_EMAIL_KEY = 'auth:user_email';
-const REMEMBER_ME_KEY = 'auth:remember_me';
+// Storage keys - IMPORTANT: Only alphanumeric, underscore, and period allowed for iOS SecureStore
+const ACCESS_TOKEN_KEY = 'auth_access_token';
+const REFRESH_TOKEN_KEY = 'auth_refresh_token';
+const TOKEN_EXPIRY_KEY = 'auth_token_expiry';
+const USER_EMAIL_KEY = 'auth_user_email';
+const REMEMBER_ME_KEY = 'auth_remember_me';
 
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
@@ -24,9 +24,8 @@ export type TokenPair = {
 export type User = {
   id: number;
   email: string;
-  display_name?: string | null;
-  avatar_url?: string | null;
-  onboarding_complete: boolean;
+  display_name?: string;
+  avatar_url?: string;
 };
 
 export type AuthState = {
@@ -207,13 +206,7 @@ export async function fetchCurrentUser(accessToken: string): Promise<User> {
     throw new Error('Failed to fetch user');
   }
 
-  const data = await res.json();
-
-  // Ensure onboarding_complete has a default value
-  return {
-    ...data,
-    onboarding_complete: data.onboarding_complete ?? false,
-  };
+  return res.json();
 }
 
 export async function logout(): Promise<void> {
