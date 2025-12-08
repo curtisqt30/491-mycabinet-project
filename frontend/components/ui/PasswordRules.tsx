@@ -11,7 +11,16 @@ type PasswordRulesProps = {
 
 const MIN_LEN = 10;
 
-const COMMON_HINTS = ['password', '123456', 'qwerty', 'letmein', 'welcome'];
+const COMMON_HINTS = [
+  'password',
+  'password1',
+  'password12',
+  'password123',
+  '123456',
+  'qwerty',
+  'letmein',
+  'welcome',
+];
 
 export default function PasswordRules({
   password,

@@ -97,7 +97,9 @@ def logout(_: DbDep, response: Response):
 # Get current user endpoint
 @router.get("/me", response_model=UserRead)
 def me(current_user: Annotated[User, Depends(security.get_current_user)]):
-    return UserRead(id=current_user.id, email=current_user.email)
+    """Get current user info including onboarding status."""
+    # Use model_validate with from_attributes to get all fields from the ORM model
+    return UserRead.model_validate(current_user)
 
 
 # User existsence check endpoint

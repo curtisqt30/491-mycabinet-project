@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,297 +7,334 @@ import {
   Image,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import BackButton from '@/components/ui/BackButton';
 import { router } from 'expo-router';
+import BackButton from '@/components/ui/BackButton';
 import FormButton from '@/components/ui/FormButton';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
-import { profiles, ME_ID, type Profile } from '@/scripts/data/mockProfiles';
+import { useAuth } from '@/app/lib/AuthContext';
 
-const USERNAME_RE = /^(?!_)([a-z0-9_]{3,20})(?<!_)$/; // 3–20, lowercase, numbers, _, no leading/trailing _
+const API_BASE =
+  process.env.EXPO_PUBLIC_API_BASE_URL ??
+  process.env.EXPO_PUBLIC_API_BASE ??
+  'http://127.0.0.1:8000/api/v1';
+
+// Avatar options for selection
+const AVATAR_OPTIONS = [
+  'https://api.dicebear.com/7.x/avataaars/png?seed=felix',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=aneka',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=bailey',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=charlie',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=dusty',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=ginger',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=midnight',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=sunrise',
+];
 
 export default function ProfileEditScreen() {
   const insets = useSafeAreaInsets();
+  const { user, accessToken, refreshUser } = useAuth();
 
-  // load current user from mock store
-  const me = ME_ID;
-  const meProfile: Profile = useMemo(() => profiles[me], [me]);
-
-  // local form state
-  const [displayName, setDisplayName] = useState(meProfile.name || '');
-  const [username, setUsername] = useState(
-    // if you store it on Profile later, pull from there; for now demo value:
-    meProfile.id === 'bob' ? 'bobdrinksalot424' : meProfile.id,
+  // Initialize form state from current user data
+  const [displayName, setDisplayName] = useState(user?.display_name || '');
+  const [selectedAvatar, setSelectedAvatar] = useState(
+    user?.avatar_url || AVATAR_OPTIONS[0],
   );
-  const [bio, setBio] = useState(meProfile.bio || '');
-  const [favDrinks, setFavDrinks] = useState<string[]>(
-    meProfile.favorites || [],
-  );
+  const [saving, setSaving] = useState(false);
 
-  const addFav = () => setFavDrinks((prev) => [...prev, 'Negroni']);
-  const removeFav = (name: string) =>
-    setFavDrinks((prev) => prev.filter((x) => x !== name));
-
-  const usernameValid = USERNAME_RE.test(username);
+  const displayNameTrimmed = displayName.trim();
   const displayNameValid =
-    displayName.trim().length >= 1 && displayName.trim().length <= 50;
-  const bioValid = bio.length <= 160;
+    displayNameTrimmed.length >= 1 && displayNameTrimmed.length <= 100;
 
-  const formValid = usernameValid && displayNameValid && bioValid;
+  // Check if anything changed
+  const hasChanges =
+    displayNameTrimmed !== (user?.display_name || '') ||
+    selectedAvatar !== (user?.avatar_url || AVATAR_OPTIONS[0]);
 
-  const onSave = () => {
-    if (!formValid) return;
+  const handleSave = async () => {
+    if (!displayNameValid || saving) return;
 
-    // demo: update mock store (no backend)
-    profiles[me] = {
-      ...profiles[me],
-      name: displayName.trim(),
-      bio,
-      favorites: favDrinks,
-    };
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/profile/me`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          display_name: displayNameTrimmed,
+          avatar_url: selectedAvatar,
+        }),
+      });
 
-    Alert.alert('Saved', 'Your profile changes were saved (demo).');
-    router.back();
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.detail || 'Failed to save profile');
+      }
+
+      // Refresh user data in context
+      await refreshUser();
+
+      Alert.alert('Success', 'Your profile has been updated!', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Something went wrong');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <>
-      {/* floating back, same as Settings/Profile */}
-      <View style={styles.backWrap}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      {/* Back button */}
+      <View style={[styles.backWrap, { top: insets.top + 10 }]}>
         <BackButton />
       </View>
+
       <ScrollView
         style={styles.container}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + 56, flexGrow: 1 },
+          { paddingTop: insets.top + 56 },
         ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
+        {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Image
-              source={{
-                uri: meProfile.avatarUrl || 'https://i.pravatar.cc/150?img=12',
-              }}
-              style={styles.avatar}
-            />
-            <TouchableOpacity
-              style={styles.cameraBadge}
-              onPress={() => {
-                /* TODO: image picker */
-              }}
-            >
-              <Text style={styles.cameraBadgeText}>📷</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.headerTextWrap}>
-            <Text style={styles.title}>Edit Profile</Text>
-            <Text style={styles.subtitle}>Update your public info</Text>
+          <Text style={styles.title}>Edit Profile</Text>
+          <Text style={styles.subtitle}>Update your public info</Text>
+        </View>
+
+        {/* Avatar Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Profile Picture</Text>
+          <View style={styles.avatarSection}>
+            <Image source={{ uri: selectedAvatar }} style={styles.mainAvatar} />
+            <View style={styles.avatarGrid}>
+              {AVATAR_OPTIONS.map((url) => (
+                <TouchableOpacity
+                  key={url}
+                  onPress={() => setSelectedAvatar(url)}
+                  style={[
+                    styles.avatarOption,
+                    selectedAvatar === url && styles.avatarOptionSelected,
+                  ]}
+                >
+                  <Image source={{ uri: url }} style={styles.avatarThumb} />
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         </View>
 
-        {/* Profile form */}
-        <View style={styles.card}>
-          <LabeledField label="Display Name">
-            <TextInput
-              value={displayName}
-              onChangeText={setDisplayName}
-              placeholder="Your name"
-              placeholderTextColor={Colors.textSecondary}
-              style={styles.input}
-              maxLength={50}
-            />
-            {!displayNameValid && (
-              <FieldHint>Display name is required (max 50 chars).</FieldHint>
-            )}
-          </LabeledField>
-
-          <LabeledField label="Username (public handle, optional)">
-            <TextInput
-              value={username}
-              onChangeText={(v) => setUsername(v.toLowerCase())}
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholder="username"
-              placeholderTextColor={Colors.textSecondary}
-              style={styles.input}
-              maxLength={20}
-            />
-            {!usernameValid && (
-              <FieldHint>
-                3–20 chars, lowercase letters, numbers, or “_”; no
-                leading/trailing “_”.
-              </FieldHint>
-            )}
-          </LabeledField>
-
-          <LabeledField label="Bio">
-            <TextInput
-              value={bio}
-              onChangeText={setBio}
-              placeholder="Tell people your taste…"
-              placeholderTextColor={Colors.textSecondary}
-              style={[styles.input, styles.inputMultiline]}
-              multiline
-              maxLength={160}
-            />
-            <Text style={styles.counter}>{bio.length}/160</Text>
-          </LabeledField>
-        </View>
-
-        {/* Favorites */}
-        <View style={styles.card}>
-          <View style={styles.rowSpace}>
-            <Text style={styles.cardTitle}>Favorite Drinks</Text>
-            <TouchableOpacity onPress={addFav}>
-              <Text style={styles.link}>+ Add</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.chipsWrap}>
-            {favDrinks.length === 0 && (
-              <Text style={styles.emptyText}>
-                Nothing yet—add a few favorites.
+        {/* Display Name Input */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Display Name</Text>
+          <TextInput
+            value={displayName}
+            onChangeText={setDisplayName}
+            placeholder="What should we call you?"
+            placeholderTextColor={Colors.textSecondary}
+            style={styles.input}
+            maxLength={100}
+            autoCapitalize="words"
+            editable={!saving}
+          />
+          <View style={styles.inputFooter}>
+            {!displayNameValid && displayName.length > 0 && (
+              <Text style={styles.errorText}>
+                Name is required (1-100 chars)
               </Text>
             )}
-            {favDrinks.map((d) => (
-              <Chip key={d} text={d} onRemove={() => removeFav(d)} />
-            ))}
+            <Text style={styles.charCount}>
+              {displayNameTrimmed.length}/100
+            </Text>
           </View>
+        </View>
+
+        {/* Email (read-only) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Email</Text>
+          <View style={styles.readOnlyField}>
+            <Text style={styles.readOnlyText}>{user?.email}</Text>
+          </View>
+          <Text style={styles.helperText}>Email cannot be changed</Text>
         </View>
 
         {/* Actions */}
-        <View style={{ marginTop: 16, gap: 10 }}>
+        <View style={styles.actions}>
           <FormButton
-            title="Save Changes"
-            onPress={onSave}
-            disabled={!formValid}
+            title={saving ? 'Saving...' : 'Save Changes'}
+            onPress={() => void handleSave()}
+            disabled={!displayNameValid || !hasChanges || saving}
           />
-          <FormButton
-            title="Cancel"
-            variant="danger"
+          {saving && <ActivityIndicator style={{ marginTop: 12 }} />}
+
+          <TouchableOpacity
+            style={styles.cancelButton}
             onPress={() => router.back()}
-          />
+            disabled={saving}
+          >
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={{ height: 32 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
-    </>
-  );
-}
-
-/* small internals */
-function LabeledField({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <View style={{ marginBottom: 14 }}>
-      <Text style={styles.label}>{label}</Text>
-      {children}
-    </View>
-  );
-}
-function FieldHint({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.hint}>{children}</Text>;
-}
-function Chip({ text, onRemove }: { text: string; onRemove?: () => void }) {
-  return (
-    <View style={styles.chip}>
-      <Text style={styles.chipText}>{text}</Text>
-      {onRemove && (
-        <TouchableOpacity
-          onPress={onRemove}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Text style={styles.chipClose}>✕</Text>
-        </TouchableOpacity>
-      )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  content: { paddingHorizontal: 16, paddingBottom: 24 },
-  backWrap: { position: 'absolute', top: 14, left: 14, zIndex: 10 },
-  header: { alignItems: 'center', marginBottom: 16 },
-  headerTextWrap: { marginTop: 10, alignItems: 'center' },
+  screen: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  backWrap: {
+    position: 'absolute',
+    left: 14,
+    zIndex: 10,
+  },
+  container: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 20,
+  },
+
+  // Header
+  header: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
   title: {
-    color: Colors.textPrimary,
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
+    color: Colors.textPrimary,
     textAlign: 'center',
   },
-  subtitle: { color: Colors.textSecondary, marginTop: 4, textAlign: 'center' },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+  subtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+
+  // Sections
+  section: {
+    marginBottom: 24,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginBottom: 8,
+  },
+
+  // Avatar selection
+  avatarSection: {
+    alignItems: 'center',
+  },
+  mainAvatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.surface,
+    marginBottom: 16,
+  },
+  avatarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  avatarOption: {
+    borderRadius: 28,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    padding: 2,
+  },
+  avatarOptionSelected: {
+    borderColor: Colors.link,
+  },
+  avatarThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: Colors.surface,
   },
-  cameraBadge: {
-    position: 'absolute',
-    right: -4,
-    bottom: -4,
-    backgroundColor: Colors.deepAsh,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cameraBadgeText: { color: '#fff', fontSize: 13 },
 
-  card: {
-    backgroundColor: Colors.buttonBackground,
-    borderRadius: 16,
-    padding: 14,
-    marginTop: 12,
-  },
-  cardTitle: { color: Colors.textPrimary, fontSize: 16, fontWeight: '700' },
-
-  label: { color: Colors.textSecondary, fontSize: 12, marginBottom: 6 },
+  // Inputs
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    color: Colors.nightBlack,
-    fontSize: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    color: Colors.textPrimary,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  inputMultiline: { minHeight: 80, textAlignVertical: 'top' },
-  counter: {
+  inputFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  charCount: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginLeft: 'auto',
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#ff6b6b',
+  },
+  helperText: {
+    fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 6,
-    alignSelf: 'flex-end',
-    fontSize: 12,
   },
 
-  rowSpace: {
-    flexDirection: 'row',
+  // Read-only field
+  readOnlyField: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  readOnlyText: {
+    color: Colors.textSecondary,
+    fontSize: 16,
+  },
+
+  // Actions
+  actions: {
+    marginTop: 16,
+  },
+
+  // Cancel button styles
+  cancelButton: {
+    marginTop: 12,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingVertical: 8,
   },
-  link: { color: Colors.textSecondary, fontWeight: '700' },
-
-  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.richCharcoal,
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+  cancelText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
   },
-  chipText: { color: Colors.textPrimary, fontSize: 13, marginRight: 6 },
-  chipClose: { color: Colors.textSecondary, fontSize: 12 },
-
-  hint: { color: Colors.textSecondary, marginTop: 6, fontSize: 12 },
-  emptyText: { color: Colors.textSecondary },
 });

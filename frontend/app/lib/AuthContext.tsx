@@ -5,6 +5,7 @@ import React, {
   useState,
   useCallback,
   useRef,
+  useMemo,
 } from 'react';
 import type { AppStateStatus } from 'react-native';
 import { AppState } from 'react-native';
@@ -37,6 +38,8 @@ type AuthContextType = AuthState & {
   ) => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  needsOnboarding: boolean;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,6 +57,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+
+  // Computed: does user need onboarding?
+  const needsOnboarding = useMemo(() => {
+    return (
+      state.isAuthenticated &&
+      state.user !== null &&
+      !state.user.onboarding_complete
+    );
+  }, [state.isAuthenticated, state.user]);
 
   // Initialize auth state on app load
   const initializeAuth = useCallback(async () => {
@@ -213,6 +225,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.isAuthenticated, logout]);
 
+  // Refresh user data only (without token refresh)
+  const refreshUser = useCallback(async () => {
+    if (!state.accessToken) return;
+
+    try {
+      const user = await fetchCurrentUser(state.accessToken);
+      setState((prev) => ({
+        ...prev,
+        user,
+      }));
+    } catch {
+      // If fetching user fails, try full refresh
+      await refreshAuth();
+    }
+  }, [state.accessToken, refreshAuth]);
+
   // Proactive token refresh
   const checkAndRefreshToken = useCallback(async () => {
     if (!state.isAuthenticated) return;
@@ -287,6 +315,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     register,
     logout,
     refreshAuth,
+    refreshUser,
+    needsOnboarding,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -307,5 +337,6 @@ export function useRequireAuth() {
     isLoading: auth.isLoading,
     isAuthenticated: auth.isAuthenticated,
     user: auth.user,
+    needsOnboarding: auth.needsOnboarding,
   };
 }

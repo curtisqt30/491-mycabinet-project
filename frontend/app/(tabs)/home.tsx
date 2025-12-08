@@ -12,17 +12,27 @@ import SkeletonCard from '@/components/ui/SkeletonCard';
 import NavigationDrawer from '@/components/ui/NavigationDrawer';
 import { getRandomDrinks } from '@/app/lib/cocktails';
 import { useFavorites } from '@/app/lib/useFavorites';
-import { getProfile, ME_ID } from '@/scripts/data/mockProfiles';
+import { useAuth } from '@/app/lib/AuthContext';
+
+// Default avatar when user hasn't set one
+const DEFAULT_AVATAR =
+  'https://api.dicebear.com/7.x/avataaars/png?seed=default';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+
   const [drinks, setDrinks] = useState<CocktailItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const { items: favItems, toggle } = useFavorites();
 
-  const profile = getProfile(ME_ID);
+  // Use real user data from auth context
+  const avatarUrl = user?.avatar_url || DEFAULT_AVATAR;
+  const displayName =
+    user?.display_name || user?.email?.split('@')[0] || 'User';
+
   const favIds = React.useMemo(
     () => new Set((favItems ?? []).map((f) => f.id)),
     [favItems],
@@ -97,7 +107,7 @@ export default function HomeScreen() {
   };
 
   const handleProfilePress = () => {
-    router.push(`/${ME_ID}`);
+    router.push('/(tabs)/profile');
   };
 
   const handleRefresh = async () => {
@@ -133,10 +143,7 @@ export default function HomeScreen() {
         hitSlop={12}
         style={[styles.profileWrap, { top: Math.max(14, insets.top) }]}
       >
-        <Image
-          source={{ uri: profile.avatarUrl || 'https://i.pravatar.cc/150' }}
-          style={styles.profileImage}
-        />
+        <Image source={{ uri: avatarUrl }} style={styles.profileImage} />
       </Pressable>
 
       {/* Header */}
@@ -146,6 +153,7 @@ export default function HomeScreen() {
           { paddingTop: insets.top + 56, paddingBottom: 24 },
         ]}
       >
+        <Text style={styles.greeting}>Hey, {displayName}!</Text>
         <Text style={styles.title}>Choose your next drink</Text>
       </View>
 
@@ -191,6 +199,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingBottom: 16,
+  },
+  greeting: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+    marginBottom: 4,
   },
   title: {
     fontSize: 28,
