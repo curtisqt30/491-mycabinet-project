@@ -32,6 +32,15 @@ const AVATAR_OPTIONS = [
   'https://api.dicebear.com/7.x/avataaars/png?seed=charlie',
   'https://api.dicebear.com/7.x/avataaars/png?seed=dusty',
   'https://api.dicebear.com/7.x/avataaars/png?seed=ginger',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=max',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=lily',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=oliver',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=mia',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=leo',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=zoe',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=jack',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=luna',
+  'https://api.dicebear.com/7.x/avataaars/png?seed=rocky',
 ];
 
 export default function ProfileSetupScreen() {
