@@ -97,12 +97,6 @@ export default function ProfileScreen() {
             <Text style={styles.statNumber}>{favorites?.length || 0}</Text>
             <Text style={styles.statLabel}>Favorites</Text>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Friends</Text>
-          </View>
         </View>
 
         {/* Favorite Drinks */}
