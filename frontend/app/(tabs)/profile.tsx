@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import FormButton from '@/components/ui/FormButton';
-import BackButton from '@/components/ui/BackButton';
+import MenuButton from '@/components/ui/MenuButton';
+import NavigationDrawer from '@/components/ui/NavigationDrawer';
 import { useAuth } from '@/app/lib/AuthContext';
 import { useFavorites } from '@/app/lib/useFavorites';
 
@@ -24,17 +25,29 @@ export default function ProfileScreen() {
   const { user } = useAuth();
   const { items: favorites } = useFavorites();
 
+  // Navigation drawer state
+  const [drawerVisible, setDrawerVisible] = useState(false);
+
   // Use real user data from auth context
   const avatarUrl = user?.avatar_url || DEFAULT_AVATAR;
   const displayName =
     user?.display_name || user?.email?.split('@')[0] || 'User';
   const email = user?.email || '';
 
+  // Menu handlers
+  const handleMenuPress = useCallback(() => {
+    setDrawerVisible(true);
+  }, []);
+
+  const handleCloseDrawer = useCallback(() => {
+    setDrawerVisible(false);
+  }, []);
+
   return (
     <View style={styles.screen}>
-      {/* Top-left back button overlay */}
-      <View style={[styles.backWrap, { top: insets.top + 10 }]}>
-        <BackButton />
+      {/* Top-left menu button overlay */}
+      <View style={[styles.menuWrap, { top: insets.top + 10 }]}>
+        <MenuButton onPress={handleMenuPress} />
       </View>
 
       <ScrollView
@@ -120,13 +133,16 @@ export default function ProfileScreen() {
 
         <View style={{ height: 32 }} />
       </ScrollView>
+
+      {/* Navigation drawer */}
+      <NavigationDrawer visible={drawerVisible} onClose={handleCloseDrawer} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  backWrap: {
+  menuWrap: {
     position: 'absolute',
     left: 14,
     zIndex: 10,

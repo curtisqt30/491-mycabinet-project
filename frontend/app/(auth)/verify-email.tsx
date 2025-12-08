@@ -5,6 +5,9 @@ import FormButton from '@/components/ui/FormButton';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import { useAuth } from '../lib/AuthContext';
 import type { Href } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import BackButton from '@/components/ui/BackButton';
+
 
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
@@ -25,6 +28,7 @@ export default function VerifyEmailCodeScreen() {
   const intent: 'verify' = 'verify';
   const title = 'Verify your email';
   const subtitle = 'We emailed you a 6-digit verification code.';
+  const insets = useSafeAreaInsets();
 
   const [codes, setCodes] = useState<string[]>(Array(CODE_LEN).fill(''));
   const [submitting, setSubmitting] = useState(false);
@@ -161,6 +165,9 @@ export default function VerifyEmailCodeScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={[styles.backWrap, { top: Math.max(14, insets.top) }]}>
+        <BackButton />
+      </View>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.subtitle}>
         {subtitle} {normalizedEmail ? `(${normalizedEmail})` : ''}
@@ -242,4 +249,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
   resend: { marginTop: 12, color: Colors.link, fontSize: 14 },
+  backWrap: {
+    position: 'absolute',
+    left: 14,
+    zIndex: 10,
+  },
 });
