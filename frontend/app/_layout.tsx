@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import { AuthProvider } from './lib/AuthContext';
 import { AuthGuard } from './lib/AuthGuard';
+import { DrinksProvider } from './lib/DrinksContext';
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -26,27 +27,29 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <ThemeProvider value={navTheme}>
-          <AuthGuard>
-            <Stack
-              screenOptions={{
-                contentStyle: { backgroundColor: Colors.background },
-              }}
-            >
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="(stack)" options={{ headerShown: false }} />
-              <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="+not-found"
-                options={{
-                  headerStyle: { backgroundColor: Colors.background },
-                  headerTintColor: '#F5F0E1',
+        <DrinksProvider>
+          <ThemeProvider value={navTheme}>
+            <AuthGuard>
+              <Stack
+                screenOptions={{
+                  contentStyle: { backgroundColor: Colors.background },
                 }}
-              />
-            </Stack>
-          </AuthGuard>
-          <StatusBar style="light" backgroundColor="#101010" />
-        </ThemeProvider>
+              >
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="(stack)" options={{ headerShown: false }} />
+                <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="+not-found"
+                  options={{
+                    headerStyle: { backgroundColor: Colors.background },
+                    headerTintColor: '#F5F0E1',
+                  }}
+                />
+              </Stack>
+            </AuthGuard>
+            <StatusBar style="light" backgroundColor="#101010" />
+          </ThemeProvider>
+        </DrinksProvider>
       </AuthProvider>
     </GestureHandlerRootView>
   );
