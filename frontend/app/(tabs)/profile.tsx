@@ -125,7 +125,11 @@ export default function ProfileScreen() {
                   onPress={() =>
                     router.push({
                       pathname: '/drink/[drinkId]',
-                      params: { drinkId: fav.id, name: fav.name },
+                      params: { 
+                        drinkId: fav.id, 
+                        name: fav.name,
+                        thumbUrl: fav.thumbUrl 
+                      },
                     })
                   }
                 >
