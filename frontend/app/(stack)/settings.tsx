@@ -42,10 +42,8 @@ function Chevron({ open }: { open: boolean }) {
 export default function SettingsScreen() {
   const { user, logout, isLoading: authLoading } = useAuth();
 
-  const [showDeleteLocal, setShowDeleteLocal] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [showChangePw, setShowChangePw] = useState(false);
-  const [confirmClearCache, setConfirmClearCache] = useState(false);
   const [confirmDeleteAcct, setConfirmDeleteAcct] = useState(false);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const insets = useSafeAreaInsets();
@@ -165,20 +163,6 @@ export default function SettingsScreen() {
         {/* Account */}
         <Text style={styles.section}>Account</Text>
         <Row
-          label="Delete My Local Data"
-          right={<Chevron open={showDeleteLocal} />}
-          onPress={() => toggle(setShowDeleteLocal)}
-        />
-        {showDeleteLocal && (
-          <View style={styles.reveal}>
-            <FormButton
-              title="Clear Local Cache"
-              onPress={() => setConfirmClearCache(true)}
-            />
-          </View>
-        )}
-
-        <Row
           label="Delete My Account"
           right={<Chevron open={showDeleteAccount} />}
           onPress={() => toggle(setShowDeleteAccount)}
@@ -230,18 +214,6 @@ export default function SettingsScreen() {
 
         <View style={{ height: 8 }} />
       </ScrollView>
-
-      <ConfirmDialog
-        visible={confirmClearCache}
-        title="Clear Local Cache"
-        message="This will remove locally stored data on this device."
-        confirmText="Clear Cache"
-        onCancel={() => setConfirmClearCache(false)}
-        onConfirm={() => {
-          setConfirmClearCache(false);
-          // TODO: Implement cache clearing logic
-        }}
-      />
 
       <ConfirmDialog
         visible={confirmDeleteAcct}

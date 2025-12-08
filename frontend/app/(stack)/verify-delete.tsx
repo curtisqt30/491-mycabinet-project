@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import FormButton from '@/components/ui/FormButton';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
+import { useAuth } from '../lib/AuthContext';
 
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
@@ -13,6 +14,7 @@ const CODE_LEN = 6;
 
 export default function VerifyDeleteScreen() {
   const { email } = useLocalSearchParams<{ email?: string }>();
+  const { accessToken, logout } = useAuth();
 
   const [codes, setCodes] = useState<string[]>(Array(CODE_LEN).fill(''));
   const [submitting, setSubmitting] = useState(false);
@@ -49,17 +51,33 @@ export default function VerifyDeleteScreen() {
   );
 
   const handleVerify = async () => {
-    if (!canSubmit || submitting) return;
+    console.log('handleVerify called', { canSubmit, submitting, codeString, normalizedEmail, accessToken: !!accessToken });
+    
+    if (!canSubmit || submitting) {
+      console.log('Early return - canSubmit:', canSubmit, 'submitting:', submitting);
+      return;
+    }
+    
+    if (!accessToken) {
+      console.log('No access token available');
+      Alert.alert('Error', 'You must be logged in to delete your account.');
+      return;
+    }
+
+    console.log('Starting account deletion...');
+
     try {
       setSubmitting(true);
+
+      console.log('Sending DELETE request to:', `${API_BASE}/auth/account`);
+      console.log('Request body:', { email: normalizedEmail, intent: 'delete', code: codeString });
 
       // Call the delete account endpoint with OTP verification
       const deleteRes = await fetch(`${API_BASE}/auth/account`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          // TODO: Add authorization header with token from auth context
-          // "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           email: normalizedEmail,
@@ -68,8 +86,11 @@ export default function VerifyDeleteScreen() {
         }),
       });
 
+      console.log('DELETE response status:', deleteRes.status);
+
       if (!deleteRes.ok) {
         const j = await deleteRes.json().catch(() => null);
+        console.log('Error response:', j);
         const detail =
           j?.detail && typeof j.detail === 'string'
             ? j.detail
@@ -78,22 +99,26 @@ export default function VerifyDeleteScreen() {
         return;
       }
 
-      // Clear local auth storage
-      // TODO: Clear your auth tokens from SecureStore or AsyncStorage
-      // await SecureStore.deleteItemAsync('authToken');
-      // await SecureStore.deleteItemAsync('refreshToken');
+      // Account successfully deleted
+      const data = await deleteRes.json();
+      console.log('Account deletion successful:', data);
 
+      // Clear auth tokens
+      await logout();
+
+      // Force redirect to login after a brief delay
+      setTimeout(() => {
+        router.replace('/(auth)/login');
+      }, 100);
+
+      // Show success message
       Alert.alert(
         'Account Deleted',
         "Your account has been permanently deleted. We're sorry to see you go.",
-        [
-          {
-            text: 'OK',
-            onPress: () => router.replace('/(auth)/login'),
-          },
-        ],
+        [{ text: 'OK' }],
       );
     } catch (e: any) {
+      console.error('Account deletion error:', e);
       Alert.alert('Network error', e?.message ?? 'Please try again.');
     } finally {
       setSubmitting(false);
