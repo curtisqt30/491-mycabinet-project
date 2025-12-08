@@ -51,26 +51,17 @@ export default function VerifyDeleteScreen() {
   );
 
   const handleVerify = async () => {
-    console.log('handleVerify called', { canSubmit, submitting, codeString, normalizedEmail, accessToken: !!accessToken });
-    
     if (!canSubmit || submitting) {
-      console.log('Early return - canSubmit:', canSubmit, 'submitting:', submitting);
       return;
     }
     
     if (!accessToken) {
-      console.log('No access token available');
       Alert.alert('Error', 'You must be logged in to delete your account.');
       return;
     }
 
-    console.log('Starting account deletion...');
-
     try {
       setSubmitting(true);
-
-      console.log('Sending DELETE request to:', `${API_BASE}/auth/account`);
-      console.log('Request body:', { email: normalizedEmail, intent: 'delete', code: codeString });
 
       // Call the delete account endpoint with OTP verification
       const deleteRes = await fetch(`${API_BASE}/auth/account`, {
@@ -86,11 +77,8 @@ export default function VerifyDeleteScreen() {
         }),
       });
 
-      console.log('DELETE response status:', deleteRes.status);
-
       if (!deleteRes.ok) {
         const j = await deleteRes.json().catch(() => null);
-        console.log('Error response:', j);
         const detail =
           j?.detail && typeof j.detail === 'string'
             ? j.detail
@@ -100,8 +88,7 @@ export default function VerifyDeleteScreen() {
       }
 
       // Account successfully deleted
-      const data = await deleteRes.json();
-      console.log('Account deletion successful:', data);
+      await deleteRes.json();
 
       // Clear auth tokens
       await logout();
@@ -118,7 +105,6 @@ export default function VerifyDeleteScreen() {
         [{ text: 'OK' }],
       );
     } catch (e: any) {
-      console.error('Account deletion error:', e);
       Alert.alert('Network error', e?.message ?? 'Please try again.');
     } finally {
       setSubmitting(false);

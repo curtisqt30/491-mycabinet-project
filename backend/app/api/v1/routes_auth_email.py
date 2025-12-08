@@ -21,7 +21,7 @@ PURPOSE_MAP = {
     "delete": "delete_otp",
 }
 
-DAILY_LIMIT = 10 
+DAILY_LIMIT = 10
 
 
 def _send_intent_email(intent: str, email: str, code: str) -> None:
