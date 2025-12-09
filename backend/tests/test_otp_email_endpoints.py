@@ -157,11 +157,11 @@ async def test_request_otp_invalid_intent(async_client: AsyncClient):
 async def test_request_otp_rate_limiting(
     mock_send_email, async_client: AsyncClient, db_session: Session
 ):
-    """Test OTP request rate limiting (3 per 24h)."""
+    """Test OTP request rate limiting (10 per 24h)."""
     mock_send_email.return_value = None
 
     # Request OTP 3 times (should succeed)
-    for i in range(3):
+    for i in range(10):
         resp = await async_client.post(
             "/api/v1/auth/otp/request",
             json={"email": "ratelimit@example.com", "intent": "verify"},
@@ -183,7 +183,7 @@ async def test_request_otp_rate_limiting(
         )
         .count()
     )
-    assert otp_count == 3
+    assert otp_count == 10
 
 
 # ===== OTP Verify Tests =====

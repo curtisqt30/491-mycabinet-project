@@ -6,9 +6,11 @@ import {
   Image,
   TouchableOpacity,
   ScrollView,
+  Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import FormButton from '@/components/ui/FormButton';
 import MenuButton from '@/components/ui/MenuButton';
@@ -43,12 +45,29 @@ export default function ProfileScreen() {
     setDrawerVisible(false);
   }, []);
 
+  const handleSettingsPress = useCallback(() => {
+    router.push('/(stack)/settings');
+  }, []);
+
   return (
     <View style={styles.screen}>
       {/* Top-left menu button overlay */}
       <View style={[styles.menuWrap, { top: insets.top + 10 }]}>
         <MenuButton onPress={handleMenuPress} />
       </View>
+
+      {/* Top-right settings button overlay */}
+      <Pressable
+        style={[styles.settingsWrap, { top: insets.top + 10 }]}
+        onPress={handleSettingsPress}
+        hitSlop={8}
+      >
+        <Ionicons
+          name="settings-outline"
+          size={26}
+          color={Colors.textPrimary}
+        />
+      </Pressable>
 
       <ScrollView
         style={styles.container}
@@ -78,12 +97,6 @@ export default function ProfileScreen() {
             <Text style={styles.statNumber}>{favorites?.length || 0}</Text>
             <Text style={styles.statLabel}>Favorites</Text>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Friends</Text>
-          </View>
         </View>
 
         {/* Favorite Drinks */}
@@ -112,7 +125,11 @@ export default function ProfileScreen() {
                   onPress={() =>
                     router.push({
                       pathname: '/drink/[drinkId]',
-                      params: { drinkId: fav.id, name: fav.name },
+                      params: { 
+                        drinkId: fav.id, 
+                        name: fav.name,
+                        thumbUrl: fav.thumbUrl 
+                      },
                     })
                   }
                 >
@@ -146,6 +163,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 14,
     zIndex: 10,
+  },
+  settingsWrap: {
+    position: 'absolute',
+    right: 14,
+    zIndex: 10,
+    padding: 4,
   },
   container: { flex: 1 },
   content: { padding: 16, paddingTop: 44 },

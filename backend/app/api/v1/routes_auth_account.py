@@ -1,6 +1,7 @@
 from logging import getLogger
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -18,6 +19,12 @@ PURPOSE_MAP = {
     "reset": "reset_otp",
     "delete": "delete_otp",
 }
+
+
+# Pydantic model for direct password change (with current password)
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str
 
 
 @router.post("/password/change")
@@ -103,8 +110,7 @@ def delete_account(
 
 @router.post("/password/change-with-current")
 def change_password_with_current(
-    current_password: str,
-    new_password: str,
+    data: ChangePasswordIn,  # <-- Now uses Pydantic model for JSON body
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -119,14 +125,14 @@ def change_password_with_current(
             detail="Account uses OAuth, cannot change password",
         )
 
-    if not verify_password(current_password, current_user.hashed_password):
+    if not verify_password(data.current_password, current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Current password is incorrect",
         )
 
     # Update the password
-    current_user.hashed_password = hash_password(new_password)
+    current_user.hashed_password = hash_password(data.new_password)
     db.add(current_user)
     db.commit()
 

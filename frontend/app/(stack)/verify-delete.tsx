@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import FormButton from '@/components/ui/FormButton';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
+import { useAuth } from '../lib/AuthContext';
 
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
@@ -13,6 +14,7 @@ const CODE_LEN = 6;
 
 export default function VerifyDeleteScreen() {
   const { email } = useLocalSearchParams<{ email?: string }>();
+  const { accessToken, logout } = useAuth();
 
   const [codes, setCodes] = useState<string[]>(Array(CODE_LEN).fill(''));
   const [submitting, setSubmitting] = useState(false);
@@ -49,7 +51,15 @@ export default function VerifyDeleteScreen() {
   );
 
   const handleVerify = async () => {
-    if (!canSubmit || submitting) return;
+    if (!canSubmit || submitting) {
+      return;
+    }
+    
+    if (!accessToken) {
+      Alert.alert('Error', 'You must be logged in to delete your account.');
+      return;
+    }
+
     try {
       setSubmitting(true);
 
@@ -58,8 +68,7 @@ export default function VerifyDeleteScreen() {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          // TODO: Add authorization header with token from auth context
-          // "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           email: normalizedEmail,
@@ -78,20 +87,22 @@ export default function VerifyDeleteScreen() {
         return;
       }
 
-      // Clear local auth storage
-      // TODO: Clear your auth tokens from SecureStore or AsyncStorage
-      // await SecureStore.deleteItemAsync('authToken');
-      // await SecureStore.deleteItemAsync('refreshToken');
+      // Account successfully deleted
+      await deleteRes.json();
 
+      // Clear auth tokens
+      await logout();
+
+      // Force redirect to login after a brief delay
+      setTimeout(() => {
+        router.replace('/(auth)/login');
+      }, 100);
+
+      // Show success message
       Alert.alert(
         'Account Deleted',
         "Your account has been permanently deleted. We're sorry to see you go.",
-        [
-          {
-            text: 'OK',
-            onPress: () => router.replace('/(auth)/login'),
-          },
-        ],
+        [{ text: 'OK' }],
       );
     } catch (e: any) {
       Alert.alert('Network error', e?.message ?? 'Please try again.');

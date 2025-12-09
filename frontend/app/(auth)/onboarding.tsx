@@ -15,7 +15,6 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
-// import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, Link } from 'expo-router';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import FormButton from '@/components/ui/FormButton';
@@ -93,13 +92,6 @@ export default function OnboardingScreen() {
       cancelled = true;
     };
   }, [chosen]);
-  // Honor the “hasOnboarded” flag
-  // useEffect(() => {
-  //   (async () => {
-  //     const seen = await AsyncStorage.getItem("hasOnboarded");
-  //     if (seen === "1") router.replace("/(auth)/create-account"); // or /home
-  //   })();
-  // }, []);
 
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
     if (viewableItems?.length) {
@@ -119,10 +111,7 @@ export default function OnboardingScreen() {
       void done();
     }
   };
-  // const done = async () => {
-  //   try { await AsyncStorage.setItem("hasOnboarded", "1"); } catch {}
-  //   router.replace("/(auth)/create-account");
-  // };
+
   const done = () => {
     router.replace('/(auth)/create-account');
   };
@@ -240,7 +229,6 @@ export default function OnboardingScreen() {
         ]}
         onLayout={(e) => setCtaH(e.nativeEvent.layout.height)}
       >
-        {' '}
         <FormButton
           title={index === SLIDES.length - 1 ? 'Get Started' : 'Next'}
           onPress={next}

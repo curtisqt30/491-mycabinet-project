@@ -21,7 +21,7 @@ PURPOSE_MAP = {
     "delete": "delete_otp",
 }
 
-DAILY_LIMIT = 3  # simple 24h cap per (email, purpose)
+DAILY_LIMIT = 10
 
 
 def _send_intent_email(intent: str, email: str, code: str) -> None:
