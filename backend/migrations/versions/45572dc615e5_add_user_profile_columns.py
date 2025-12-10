@@ -27,8 +27,8 @@ depends_on = None
 def column_exists(table_name, column_name):
     """Check if a column exists in the table."""
     bind = op.get_bind()
-    inspector = inspect(bind)
-    columns = [col['name'] for col in inspector.get_columns(table_name)]
+    insp = inspect(bind)
+    columns = [col['name'] for col in insp.get_columns(table_name)]
     return column_name in columns
 
 
@@ -49,10 +49,20 @@ def upgrade() -> None:
     if not column_exists('users', 'provider_id'):
         op.add_column('users', sa.Column('provider_id', sa.String(128), nullable=True))
         op.create_index('ix_users_provider_id', 'users', ['provider_id'])
+    
+    if not column_exists('users', 'hashed_password'):
+        op.add_column('users', sa.Column('hashed_password', sa.String(255), nullable=True))
+    
+    if not column_exists('users', 'onboarding_complete'):
+        op.add_column('users', sa.Column('onboarding_complete', sa.Boolean(), nullable=False, server_default='false'))
 
 
 def downgrade() -> None:
     """Remove profile columns from users table."""
+    if column_exists('users', 'onboarding_complete'):
+        op.drop_column('users', 'onboarding_complete')
+    if column_exists('users', 'hashed_password'):
+        op.drop_column('users', 'hashed_password')
     if column_exists('users', 'provider_id'):
         op.drop_index('ix_users_provider_id', table_name='users')
         op.drop_column('users', 'provider_id')
