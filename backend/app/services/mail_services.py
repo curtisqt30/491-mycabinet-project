@@ -1,60 +1,67 @@
 import os
-import smtplib
-import ssl
-from email.message import EmailMessage
+from logging import getLogger
 from typing import Literal, Optional
 
+import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# SMTP configuration
-SMTP_HOST = os.getenv("SMTP_HOST", "mail.privateemail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER")
-SMTP_PASS = os.getenv("SMTP_PASS")
+log = getLogger(__name__)
+
+# Resend configuration (primary - works on Railway)
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+RESEND_API_URL = "https://api.resend.com/emails"
+
+# Email settings
 MAIL_FROM = os.getenv("MAIL_FROM", "MyCabinet <no-reply@mycabinet.me>")
 REPLY_TO = os.getenv("REPLY_TO")
 
 
-# ---- Utility functions ----
-def _require_creds():
-    if not (SMTP_USER and SMTP_PASS):
-        raise RuntimeError("SMTP_USER/SMTP_PASS not set. Did you create backend/.env?")
-
-
-def _build_message(
-    to: str, subject: str, html: str, text: Optional[str] = None
-) -> EmailMessage:
-    msg = EmailMessage()
-    msg["From"] = MAIL_FROM
-    msg["To"] = to
-    msg["Subject"] = subject
-    if REPLY_TO:
-        msg["Reply-To"] = REPLY_TO
-    # Plain text fallback
-    msg.set_content(text or " ")
-    # HTML body
-    msg.add_alternative(html, subtype="html")
-    return msg
+def _require_api_key():
+    if not RESEND_API_KEY:
+        raise RuntimeError("RESEND_API_KEY not set. Add it to Railway environment variables.")
 
 
 def send_email(to: str, subject: str, html: str, text: Optional[str] = None) -> None:
-    """Synchronous send. Use with FastAPI BackgroundTasks for non-blocking behavior."""
-    _require_creds()
-    ctx = ssl.create_default_context()
-    msg = _build_message(to, subject, html, text)
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
-        s.starttls(context=ctx)
-        s.login(SMTP_USER, SMTP_PASS)
-        s.send_message(msg)
+    """Send email via Resend HTTP API (works on Railway, no SMTP needed)."""
+    _require_api_key()
+    
+    payload = {
+        "from": MAIL_FROM,
+        "to": [to],
+        "subject": subject,
+        "html": html,
+    }
+    
+    if text:
+        payload["text"] = text
+    
+    if REPLY_TO:
+        payload["reply_to"] = REPLY_TO
+    
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(RESEND_API_URL, json=payload, headers=headers)
+            response.raise_for_status()
+            log.info("Email sent successfully to %s via Resend", to)
+    except httpx.HTTPStatusError as e:
+        log.error("Resend API error: %s - %s", e.response.status_code, e.response.text)
+        raise RuntimeError(f"Email send failed: {e.response.text}")
+    except httpx.RequestError as e:
+        log.error("Resend request failed: %s", e)
+        raise RuntimeError(f"Email send failed: {e}")
 
 
 # ---- Shared code template ----
 def _format_code_for_html(code: str) -> str:
-    # normalize and add a bit of tracking-friendly spacing for readability
+    """Format OTP code with spacing for readability."""
     c = "".join(ch for ch in code if ch.isdigit())
-    # group as 3-3 or 4-4 depending on length; fallback to plain
     if len(c) == 6:
         return f"{c[:3]}&nbsp;&nbsp;{c[3:]}"
     if len(c) == 8:
@@ -65,7 +72,6 @@ def _format_code_for_html(code: str) -> str:
 def send_code(to: str, subject: str, code: str) -> None:
     """
     Generic code sender used by all intents (login/verify/reset/delete).
-    No links, no deep links—OTP-only.
     """
     safe_code_html = _format_code_for_html(code)
     html = f"""
@@ -125,9 +131,7 @@ def send_password_changed_notice(to: str) -> None:
       If this wasn't you, reset it immediately.</p>
     </div>
     """
-    text = (
-        "Your MyCabinet password was changed. If this wasn't you, reset it immediately."
-    )
+    text = "Your MyCabinet password was changed. If this wasn't you, reset it immediately."
     send_email(to, subject, html, text)
 
 
