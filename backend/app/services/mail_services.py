@@ -20,31 +20,33 @@ REPLY_TO = os.getenv("REPLY_TO")
 
 def _require_api_key():
     if not RESEND_API_KEY:
-        raise RuntimeError("RESEND_API_KEY not set. Add it to Railway environment variables.")
+        raise RuntimeError(
+            "RESEND_API_KEY not set. Add it to Railway environment variables."
+        )
 
 
 def send_email(to: str, subject: str, html: str, text: Optional[str] = None) -> None:
     """Send email via Resend HTTP API (works on Railway, no SMTP needed)."""
     _require_api_key()
-    
+
     payload = {
         "from": MAIL_FROM,
         "to": [to],
         "subject": subject,
         "html": html,
     }
-    
+
     if text:
         payload["text"] = text
-    
+
     if REPLY_TO:
         payload["reply_to"] = REPLY_TO
-    
+
     headers = {
         "Authorization": f"Bearer {RESEND_API_KEY}",
         "Content-Type": "application/json",
     }
-    
+
     try:
         with httpx.Client(timeout=30.0) as client:
             response = client.post(RESEND_API_URL, json=payload, headers=headers)
@@ -131,7 +133,9 @@ def send_password_changed_notice(to: str) -> None:
       If this wasn't you, reset it immediately.</p>
     </div>
     """
-    text = "Your MyCabinet password was changed. If this wasn't you, reset it immediately."
+    text = (
+        "Your MyCabinet password was changed. If this wasn't you, reset it immediately."
+    )
     send_email(to, subject, html, text)
 
 

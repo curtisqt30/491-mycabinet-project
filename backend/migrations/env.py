@@ -8,6 +8,9 @@ from alembic import context
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, pool
 
+# Import models + metadata
+from app.models.base import Base
+
 # make sure Alembic can import app.* modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -27,6 +30,7 @@ if database_url:
 else:
     # Local dev: build from individual PG* environment variables
     from sqlalchemy.engine import URL
+
     database_url = URL.create(
         "postgresql+psycopg",
         username=os.getenv("PGUSER"),
@@ -42,8 +46,6 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Import models + metadata
-from app.models.base import Base
 target_metadata = Base.metadata
 
 
