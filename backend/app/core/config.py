@@ -8,11 +8,11 @@ class Settings:
     REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
     
     # Database URL handling for Railway
-    # Railway provides DATABASE_URL with postgres:// prefix
-    # SQLAlchemy 2.0+ requires postgresql:// or postgresql+psycopg://
     _db_url = os.getenv("DATABASE_URL", "sqlite:///./app.db")
     if _db_url.startswith("postgres://"):
         _db_url = _db_url.replace("postgres://", "postgresql+psycopg://", 1)
+    elif _db_url.startswith("postgresql://") and "+psycopg" not in _db_url:
+        _db_url = _db_url.replace("postgresql://", "postgresql+psycopg://", 1)
     DATABASE_URL = _db_url
     
     CORS_ORIGINS = [
