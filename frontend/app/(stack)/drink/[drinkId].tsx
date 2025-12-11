@@ -112,7 +112,12 @@ export default function DrinkDetailsScreen() {
 
       <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
         {/* Reserve space for back button so long titles don't overlap */}
-        <View style={styles.headerWrap}>
+        <View
+          style={[
+            styles.headerWrap,
+            { paddingTop: 56, paddingLeft: 56, paddingRight: 16 },
+          ]}
+        >
           <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
             {title}
           </Text>
@@ -240,8 +245,6 @@ const styles = StyleSheet.create({
   headerWrap: {
     backgroundColor: Colors.background,
     alignItems: 'center',
-    paddingTop: 56,
-    paddingHorizontal: 56,
     paddingBottom: 12,
   },
   title: {

@@ -5,11 +5,13 @@ import {
   Pressable,
   Animated,
   Platform,
+  SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { usePathname, useRouter, type Href } from 'expo-router';
+import { usePathname, Link, type Href } from 'expo-router';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 
+// Define the type for each navigation item
 type Item = {
   icon: keyof typeof Ionicons.glyphMap;
   route: Href;
@@ -17,21 +19,23 @@ type Item = {
   match?: (path: string) => boolean;
 };
 
+// Define the props for the BottomNav component
 type Props = {
   items: Item[];
   height?: number;
   safeArea?: boolean;
 };
 
+// size of the red dot indicator
 const DOT = 6;
 
+// Bottom navigation bar with animated indicator
 export default function BottomNav({
   items,
   height = 64,
   safeArea = true,
 }: Props) {
   const pathname = usePathname();
-  const router = useRouter();
 
   const matchedIndex = Math.max(
     0,
@@ -50,6 +54,7 @@ export default function BottomNav({
     if (matchedIndex !== index) setIndex(matchedIndex);
   }, [matchedIndex, index]);
 
+  // animate the red dot to the new index
   useEffect(() => {
     Animated.spring(animIndex, {
       toValue: index,
@@ -81,14 +86,27 @@ export default function BottomNav({
       })
     : (centers[index] ?? 0) - DOT / 2;
 
-  return (
+  const ripple =
+    Platform.OS === 'android'
+      ? { color: `${Colors.accentPrimary}33`, borderless: true }
+      : undefined;
+
+  // the navigation bar
+  const Bar = (
     <View
       onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
-      style={[styles.bar, { height, backgroundColor: Colors.buttonBackground }]}
+      style={StyleSheet.flatten([
+        styles.bar,
+        { height, backgroundColor: Colors.buttonBackground },
+      ])}
     >
+      {/* red dot */}
       {barW > 0 && (
         <Animated.View
-          style={[styles.dot, { left: leftValue, backgroundColor: Colors.textRed }]}
+          style={StyleSheet.flatten([
+            styles.dot,
+            { left: leftValue, backgroundColor: Colors.textRed },
+          ])}
         />
       )}
 
@@ -101,32 +119,44 @@ export default function BottomNav({
         const href: Href = it.href ?? it.route;
 
         return (
-          <Pressable
-            key={`${String(it.route)}-${i}`}
-            style={[styles.tab, { width: `${tabWidthPct}%`, height }]}
-            onPress={() => {
-              setIndex(i);
-              router.push(href);
-            }}
-          >
-            <Ionicons
-              name={iconName}
-              size={22}
-              color={active ? Colors.textPrimary : Colors.textSecondary}
-            />
-          </Pressable>
+          <Link key={`${String(it.route)}-${i}`} href={href} asChild>
+            <Pressable
+              style={StyleSheet.flatten([
+                styles.tab,
+                { width: `${tabWidthPct}%`, height },
+              ])}
+              android_ripple={ripple}
+              onPressIn={() => setIndex(i)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+            >
+              <Ionicons
+                name={iconName}
+                size={22}
+                color={active ? Colors.textPrimary : Colors.textSecondary}
+              />
+            </Pressable>
+          </Link>
         );
       })}
     </View>
   );
+
+  if (!safeArea) return <View style={styles.wrap}>{Bar}</View>;
+  return <SafeAreaView style={styles.wrap}>{Bar}</SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
+  wrap: {
+    paddingHorizontal: 0,
+    paddingBottom: Platform.OS === 'android' ? 10 : 0,
+  },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 22,
     overflow: 'hidden',
+    marginHorizontal: 0,
     shadowColor: '#000',
     shadowOpacity: 0.25,
     shadowRadius: 12,
