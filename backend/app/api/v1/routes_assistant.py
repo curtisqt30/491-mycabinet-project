@@ -1,14 +1,26 @@
-from fastapi import APIRouter, HTTPException, status
+from typing import Annotated
+from logging import getLogger
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.core.db import get_db
+from app.core.security import get_current_user
+from app.models.user import User
 from app.schemas.assistant import ChatRequest, ChatResponse
+from app.services import ai_service
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
+log = getLogger(__name__)
+
+DbDep = Annotated[Session, Depends(get_db)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 def generate_mock_response(user_message: str) -> str:
     """
     Generate a mock assistant response based on user input.
-    This is a placeholder for future AI integration.
+    Used as a fallback when AI service is unavailable.
     """
     lower_message = user_message.lower()
 
@@ -50,16 +62,24 @@ def generate_mock_response(user_message: str) -> str:
 
 
 @router.post("/chat", response_model=ChatResponse, status_code=status.HTTP_200_OK)
-def chat(request: ChatRequest) -> ChatResponse:
+def chat(
+    request: ChatRequest,
+    db: DbDep,
+    current_user: CurrentUser,
+) -> ChatResponse:
     """
-    Handle chat/assistant requests.
+    Handle chat/assistant requests with AI-powered cocktail recommendations.
 
     This endpoint accepts a user message and optional conversation history,
-    and returns an assistant response. Currently returns mock responses
-    as a placeholder for future AI integration.
+    and returns an AI-generated response based on the user's pantry ingredients.
+    Falls back to mock responses if AI service is unavailable.
+
+    Requires authentication via Bearer token.
 
     Args:
         request: ChatRequest containing the user's message and optional history
+        db: Database session
+        current_user: Authenticated user (from JWT token)
 
     Returns:
         ChatResponse with the assistant's response
@@ -75,8 +95,41 @@ def chat(request: ChatRequest) -> ChatResponse:
                 detail="Message cannot be empty",
             )
 
-        # Generate mock response (will be replaced with AI integration later)
-        assistant_message = generate_mock_response(request.message.strip())
+        # Get user's pantry ingredients from database
+        from app.models.ingredient import Ingredient
+        from app.models.link_tables import UserIngredient
+
+        pantry_items = (
+            db.query(UserIngredient)
+            .filter(UserIngredient.user_id == current_user.id)
+            .join(Ingredient)
+            .all()
+        )
+        pantry_ingredients = [item.ingredient.name for item in pantry_items]
+
+        # Convert conversation history format if provided
+        conversation_history = None
+        if request.conversation_history:
+            conversation_history = [
+                {"role": msg.role, "content": msg.content}
+                for msg in request.conversation_history
+            ]
+
+        # Call AI service
+        try:
+            assistant_message = ai_service.chat_with_gemini(
+                user_message=request.message.strip(),
+                pantry_ingredients=pantry_ingredients,
+                conversation_history=conversation_history,
+            )
+        except ValueError as e:
+            # API key not configured - fallback to mock response
+            log.warning(f"AI service not available: {str(e)}. Using mock response.")
+            assistant_message = generate_mock_response(request.message.strip())
+        except Exception as e:
+            # AI service error - log and fallback to mock
+            log.error(f"AI service error: {str(e)}. Using mock response.")
+            assistant_message = generate_mock_response(request.message.strip())
 
         return ChatResponse(message=assistant_message, success=True)
 
@@ -85,6 +138,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         raise
     except Exception as e:
         # Handle unexpected errors
+        log.exception("Unexpected error in assistant endpoint")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while processing your request: {str(e)}",

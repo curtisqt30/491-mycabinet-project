@@ -29,6 +29,8 @@ import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import { normalizeIngredient } from '../utils/normalize';
 import { ingredientImageUrl } from '../utils/cocktaildb';
 import { loadIngredientCatalog } from '../utils/ingredientCatalog';
+import { useApi } from '@/app/lib/useApi';
+import { useAuth } from '@/app/lib/AuthContext';
 
 // Components
 import Chip from '@/components/my-ingredients/Chip';
@@ -66,6 +68,8 @@ const STORAGE_KEY = '@mixology:cabinet_v1';
 /** ---------- Main Screen Component ---------- */
 export default function MyIngredientsScreen() {
   const insets = useSafeAreaInsets();
+  const { get, post, put, del } = useApi();
+  const { isAuthenticated } = useAuth();
 
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [activeTab, setActiveTab] = useState<'cabinet' | 'shopping'>('cabinet');
@@ -89,7 +93,12 @@ export default function MyIngredientsScreen() {
   // local persistence state
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [_syncing, setSyncing] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Track backend ingredient IDs for syncing
+  const backendIngredientMap = useRef<Map<string, number>>(new Map()); // local_id -> backend_id
 
   // adding new ingredient
   const [addVisible, setAddVisible] = useState(false);
@@ -101,10 +110,59 @@ export default function MyIngredientsScreen() {
   // Navigation drawer state
   const [drawerVisible, setDrawerVisible] = useState(false);
 
-  /** ----- Persistence ----- */
+  /** ----- Load from Database or AsyncStorage ----- */
   useEffect(() => {
     void (async () => {
       try {
+        setLoading(true);
+        
+        // Try to load from database first (if authenticated)
+        if (isAuthenticated) {
+          try {
+            const pantryItems = await get<
+              { id: number; ingredient_name: string; quantity: number }[]
+            >('/users/me/pantry');
+            
+            if (pantryItems && pantryItems.length > 0) {
+              // Convert backend format to local format
+              const loadedIngredients: Ingredient[] = pantryItems.map((item) => {
+                const { displayName, canonicalName } = normalizeIngredient(
+                  item.ingredient_name,
+                );
+                const localId = `db_${item.id}`;
+                backendIngredientMap.current.set(localId, item.id);
+                
+                return {
+                  id: localId,
+                  name: displayName,
+                  category: 'Other', // Default category
+                  owned: true, // All items from pantry are owned
+                  qty: item.quantity,
+                  imageUrl: ingredientImageUrl(
+                    canonicalName || displayName,
+                    'Small',
+                  ),
+                };
+              });
+              
+              setIngredients(loadedIngredients);
+              
+              // Save to AsyncStorage as cache
+              await AsyncStorage.setItem(
+                STORAGE_KEY,
+                JSON.stringify(loadedIngredients),
+              );
+              
+              setLoading(false);
+              return;
+            }
+          } catch (e) {
+            console.warn('Failed to load from database, using cache:', e);
+            // Fall through to AsyncStorage
+          }
+        }
+        
+        // Fallback to AsyncStorage
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
           const parsed = JSON.parse(raw) as Ingredient[];
@@ -121,8 +179,9 @@ export default function MyIngredientsScreen() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [isAuthenticated, get]);
 
+  /** ----- Sync to AsyncStorage (cache) ----- */
   useEffect(() => {
     if (loading) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -133,7 +192,7 @@ export default function MyIngredientsScreen() {
           setSaving(true);
           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(ingredients));
         } catch (e) {
-          console.warn('Failed to save cabinet:', e);
+          console.warn('Failed to save cabinet to cache:', e);
         } finally {
           setSaving(false);
         }
@@ -144,6 +203,112 @@ export default function MyIngredientsScreen() {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
   }, [ingredients, loading]);
+
+  /** ----- Sync to Database (background) ----- */
+  const syncIngredientToBackend = useCallback(
+    async (ingredient: Ingredient, action: 'add' | 'update' | 'remove') => {
+      if (!isAuthenticated || !ingredient.owned) return; // Only sync owned ingredients
+      
+      try {
+        if (action === 'add') {
+          const response = await post<{
+            id: number;
+            ingredient_name: string;
+            quantity: number;
+          }>('/users/me/pantry', {
+            ingredient_name: ingredient.name,
+            quantity: ingredient.qty ?? 1.0,
+          });
+          
+          // Map backend ID to local ID
+          backendIngredientMap.current.set(ingredient.id, response.id);
+        } else if (action === 'update') {
+          const backendId = backendIngredientMap.current.get(ingredient.id);
+          if (backendId) {
+            await put(`/users/me/pantry/${backendId}`, {
+              quantity: ingredient.qty ?? 1.0,
+            });
+          }
+        } else if (action === 'remove') {
+          const backendId = backendIngredientMap.current.get(ingredient.id);
+          if (backendId) {
+            await del(`/users/me/pantry/${backendId}`);
+            backendIngredientMap.current.delete(ingredient.id);
+          }
+        }
+      } catch (e) {
+        console.warn(`Failed to sync ingredient ${action}:`, e);
+        // Don't throw - allow offline operation
+      }
+    },
+    [isAuthenticated, post, put, del],
+  );
+
+  /** ----- Debounced sync to backend ----- */
+  useEffect(() => {
+    if (loading || !isAuthenticated) return;
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+
+    syncTimer.current = setTimeout(() => {
+      void (async () => {
+        try {
+          setSyncing(true);
+          
+          // Get current backend state
+          const pantryItems = await get<
+            { id: number; ingredient_name: string; quantity: number }[]
+          >('/users/me/pantry');
+          
+          const backendMap = new Map<string, number>();
+          pantryItems.forEach((item) => {
+            const { displayName } = normalizeIngredient(item.ingredient_name);
+            backendMap.set(displayName.toLowerCase(), item.id);
+          });
+          
+          // Sync owned ingredients
+          const ownedIngredients = ingredients.filter((i) => i.owned);
+          
+          for (const ingredient of ownedIngredients) {
+            const normalizedName = ingredient.name.toLowerCase();
+            const backendId = backendMap.get(normalizedName);
+            
+            if (backendId) {
+              // Update existing
+              const backendItem = pantryItems.find((p) => p.id === backendId);
+              if (
+                backendItem &&
+                Math.abs((backendItem.quantity ?? 1) - (ingredient.qty ?? 1)) >
+                  0.01
+              ) {
+                await syncIngredientToBackend(ingredient, 'update');
+              }
+              backendIngredientMap.current.set(ingredient.id, backendId);
+            } else {
+              // Add new
+              await syncIngredientToBackend(ingredient, 'add');
+            }
+          }
+          
+          // Remove ingredients that are no longer owned
+          for (const [localId, backendId] of backendIngredientMap.current) {
+            const ingredient = ingredients.find((i) => i.id === localId);
+            if (!ingredient || !ingredient.owned) {
+              await del(`/users/me/pantry/${backendId}`);
+              backendIngredientMap.current.delete(localId);
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to sync to backend:', e);
+        } finally {
+          setSyncing(false);
+        }
+      })();
+    }, 1000); // Debounce sync by 1 second
+
+    return () => {
+      if (syncTimer.current) clearTimeout(syncTimer.current);
+    };
+  }, [ingredients, loading, isAuthenticated, get, del, syncIngredientToBackend]);
 
   /** ----- Derived data ----- */
   const ownedCount = useMemo(
@@ -277,13 +442,30 @@ export default function MyIngredientsScreen() {
   };
 
   // NEW: qty adjust handler (clamp & round to 2 decimals)
-  const adjustQty = useCallback((id: string, nextQty: number) => {
-    const clamped = Math.max(0, Math.min(1, nextQty));
-    const rounded = Math.round(clamped * 100) / 100;
-    setIngredients((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, qty: rounded } : i)),
-    );
-  }, []);
+  const adjustQty = useCallback(
+    async (id: string, nextQty: number) => {
+      const clamped = Math.max(0, Math.min(1, nextQty));
+      const rounded = Math.round(clamped * 100) / 100;
+      
+      setIngredients((prev) => {
+        const updated = prev.map((i) =>
+          i.id === id ? { ...i, qty: rounded } : i,
+        );
+        
+        // Sync quantity update to backend (after state update)
+        const ingredient = updated.find((i) => i.id === id);
+        if (isAuthenticated && ingredient?.owned) {
+          // Sync in background, don't await
+          syncIngredientToBackend(ingredient, 'update').catch((e) => {
+            console.warn('Failed to sync quantity update:', e);
+          });
+        }
+        
+        return updated;
+      });
+    },
+    [isAuthenticated, syncIngredientToBackend],
+  );
 
   const markPurchasedSingle = (id: string) => {
     const it = ingredients.find((i) => i.id === id);
@@ -411,7 +593,9 @@ export default function MyIngredientsScreen() {
       }}
       onAddToShopping={addToShopping}
       onRemoveFromCabinet={removeFromCabinet}
-      onAdjustQty={adjustQty} // << integrate qty control
+      onAdjustQty={(id, qty) => {
+        void adjustQty(id, qty);
+      }}
     />
   );
 
@@ -747,13 +931,12 @@ export default function MyIngredientsScreen() {
                     renderItem={({ item }) => (
                       <TouchableOpacity
                         onPress={() => {
-                          const id = `${Date.now()}`;
-                          const { displayName, canonicalName } =
-                            normalizeIngredient(item.name);
-                          const name = displayName;
-                          setIngredients((prev) => [
-                            ...prev,
-                            {
+                          void (async () => {
+                            const id = `${Date.now()}`;
+                            const { displayName, canonicalName } =
+                              normalizeIngredient(item.name);
+                            const name = displayName;
+                            const newIngredient: Ingredient = {
                               id,
                               name,
                               category: 'Other',
@@ -765,11 +948,23 @@ export default function MyIngredientsScreen() {
                                 'Small',
                               ),
                               qty: Math.max(0, Math.min(1, qty)), // save fraction
-                            },
-                          ]);
-                          setAddVisible(false);
-                          setAddQuery('');
-                          setQty(1);
+                            };
+
+                            setIngredients((prev) => [...prev, newIngredient]);
+
+                            // Sync to backend immediately if owned
+                            if (activeTab === 'cabinet' && isAuthenticated) {
+                              try {
+                                await syncIngredientToBackend(newIngredient, 'add');
+                              } catch (e) {
+                                console.warn('Failed to sync new ingredient:', e);
+                              }
+                            }
+
+                            setAddVisible(false);
+                            setAddQuery('');
+                            setQty(1);
+                          })();
                         }}
                         style={{
                           flexDirection: 'row',

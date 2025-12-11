@@ -13,3 +13,4 @@ email-validator
 pytest
 pytest-asyncio
 pytest-cov
+google-generativeai
