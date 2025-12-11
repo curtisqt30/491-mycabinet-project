@@ -66,9 +66,16 @@ def build_system_prompt(pantry_ingredients: list[str]) -> str:
     """
     if pantry_ingredients:
         ingredients_text = ", ".join(pantry_ingredients)
-        ingredients_context = f"The user currently has these ingredients in their cabinet: {ingredients_text}. Use these ingredients when suggesting cocktails."
+        ingredients_context = (
+            f"The user currently has these ingredients in their cabinet: "
+            f"{ingredients_text}. "
+            "Use these ingredients when suggesting cocktails."
+        )
     else:
-        ingredients_context = "The user's cabinet is currently empty - they have no ingredients yet."
+        ingredients_context = (
+            "The user's cabinet is currently empty - "
+            "they have no ingredients yet."
+        )
 
     prompt = f"""You are a helpful cocktail assistant for MyCabinet, a cocktail recipe app.
 

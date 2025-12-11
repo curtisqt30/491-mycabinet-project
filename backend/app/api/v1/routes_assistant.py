@@ -98,7 +98,7 @@ def chat(
         # Get user's pantry ingredients from database
         from app.models.ingredient import Ingredient
         from app.models.link_tables import UserIngredient
-        
+
         pantry_items = (
             db.query(UserIngredient)
             .filter(UserIngredient.user_id == current_user.id)
@@ -106,7 +106,7 @@ def chat(
             .all()
         )
         pantry_ingredients = [item.ingredient.name for item in pantry_items]
-        
+
         # Convert conversation history format if provided
         conversation_history = None
         if request.conversation_history:
