@@ -74,9 +74,6 @@ const scrollToBottom = (
 
 // Helper to render formatted text (bold, lists, etc.)
 const renderFormattedText = (text: string, isUser: boolean) => {
-  const parts: React.ReactNode[] = [];
-  let currentIndex = 0;
-  
   // Split by double newlines for paragraphs
   const paragraphs = text.split(/\n\n+/);
   
@@ -601,7 +598,9 @@ export default function AssistantScreen() {
                       <TouchableOpacity
                         key={index}
                         style={styles.sampleQuestionChip}
-                        onPress={() => handleSend(question)}
+                        onPress={() => {
+                          void handleSend(question);
+                        }}
                         activeOpacity={0.7}
                       >
                         <Text style={styles.sampleQuestionText}>
@@ -633,7 +632,9 @@ export default function AssistantScreen() {
                   <TouchableOpacity
                     key={index}
                     style={styles.quickQuestionChip}
-                    onPress={() => handleSend(question)}
+                    onPress={() => {
+                      void handleSend(question);
+                    }}
                     activeOpacity={0.7}
                   >
                     <Text style={styles.quickQuestionText}>{question}</Text>
@@ -653,7 +654,7 @@ export default function AssistantScreen() {
               maxLength={500}
               onSubmitEditing={() => {
                 if (inputText.trim() && !isLoading) {
-                  handleSend();
+                  void handleSend();
                 }
               }}
               returnKeyType="send"
@@ -666,7 +667,9 @@ export default function AssistantScreen() {
                 (inputText.trim() === '' || isLoading) &&
                   styles.sendButtonDisabled,
               ]}
-              onPress={() => handleSend()}
+              onPress={() => {
+                void handleSend();
+              }}
               disabled={inputText.trim() === '' || isLoading}
             >
               {isLoading ? (

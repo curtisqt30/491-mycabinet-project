@@ -93,7 +93,7 @@ export default function MyIngredientsScreen() {
   // local persistence state
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const [_syncing, setSyncing] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -120,7 +120,7 @@ export default function MyIngredientsScreen() {
         if (isAuthenticated) {
           try {
             const pantryItems = await get<
-              Array<{ id: number; ingredient_name: string; quantity: number }>
+              { id: number; ingredient_name: string; quantity: number }[]
             >('/users/me/pantry');
             
             if (pantryItems && pantryItems.length > 0) {
@@ -256,7 +256,7 @@ export default function MyIngredientsScreen() {
           
           // Get current backend state
           const pantryItems = await get<
-            Array<{ id: number; ingredient_name: string; quantity: number }>
+            { id: number; ingredient_name: string; quantity: number }[]
           >('/users/me/pantry');
           
           const backendMap = new Map<string, number>();
@@ -593,7 +593,9 @@ export default function MyIngredientsScreen() {
       }}
       onAddToShopping={addToShopping}
       onRemoveFromCabinet={removeFromCabinet}
-      onAdjustQty={adjustQty} // << integrate qty control
+      onAdjustQty={(id, qty) => {
+        void adjustQty(id, qty);
+      }}
     />
   );
 
@@ -928,39 +930,41 @@ export default function MyIngredientsScreen() {
                     keyExtractor={(i) => i.name}
                     renderItem={({ item }) => (
                       <TouchableOpacity
-                        onPress={async () => {
-                          const id = `${Date.now()}`;
-                          const { displayName, canonicalName } =
-                            normalizeIngredient(item.name);
-                          const name = displayName;
-                          const newIngredient: Ingredient = {
-                            id,
-                            name,
-                            category: 'Other',
-                            owned: activeTab === 'cabinet',
-                            wanted: activeTab === 'shopping',
-                            impactScore: Math.random(),
-                            imageUrl: ingredientImageUrl(
-                              canonicalName || name,
-                              'Small',
-                            ),
-                            qty: Math.max(0, Math.min(1, qty)), // save fraction
-                          };
-                          
-                          setIngredients((prev) => [...prev, newIngredient]);
-                          
-                          // Sync to backend immediately if owned
-                          if (activeTab === 'cabinet' && isAuthenticated) {
-                            try {
-                              await syncIngredientToBackend(newIngredient, 'add');
-                            } catch (e) {
-                              console.warn('Failed to sync new ingredient:', e);
+                        onPress={() => {
+                          void (async () => {
+                            const id = `${Date.now()}`;
+                            const { displayName, canonicalName } =
+                              normalizeIngredient(item.name);
+                            const name = displayName;
+                            const newIngredient: Ingredient = {
+                              id,
+                              name,
+                              category: 'Other',
+                              owned: activeTab === 'cabinet',
+                              wanted: activeTab === 'shopping',
+                              impactScore: Math.random(),
+                              imageUrl: ingredientImageUrl(
+                                canonicalName || name,
+                                'Small',
+                              ),
+                              qty: Math.max(0, Math.min(1, qty)), // save fraction
+                            };
+
+                            setIngredients((prev) => [...prev, newIngredient]);
+
+                            // Sync to backend immediately if owned
+                            if (activeTab === 'cabinet' && isAuthenticated) {
+                              try {
+                                await syncIngredientToBackend(newIngredient, 'add');
+                              } catch (e) {
+                                console.warn('Failed to sync new ingredient:', e);
+                              }
                             }
-                          }
-                          
-                          setAddVisible(false);
-                          setAddQuery('');
-                          setQty(1);
+
+                            setAddVisible(false);
+                            setAddQuery('');
+                            setQty(1);
+                          })();
                         }}
                         style={{
                           flexDirection: 'row',
