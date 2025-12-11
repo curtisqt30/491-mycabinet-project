@@ -1,4 +1,8 @@
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class Settings:
@@ -13,6 +17,7 @@ class Settings:
             "CORS_ORIGINS", "http://localhost:19006,http://localhost:5173"
         ).split(",")
     ]
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 
 settings = Settings()
