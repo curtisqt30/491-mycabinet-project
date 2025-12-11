@@ -16,7 +16,6 @@ import {
   Image,
   Platform,
   UIManager,
-  Pressable,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import {
@@ -638,8 +637,8 @@ export default function MyIngredientsScreen() {
           animationType="fade"
           onRequestClose={cancelRename}
         >
-          <Pressable style={styles.modalOverlay} onPress={cancelRename}>
-            <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Rename Ingredient</Text>
               <TextInput
                 style={styles.modalInput}
@@ -673,8 +672,8 @@ export default function MyIngredientsScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
-            </Pressable>
-          </Pressable>
+            </View>
+          </View>
         </Modal>
 
         {/* Add Ingredient Modal */}
@@ -684,20 +683,8 @@ export default function MyIngredientsScreen() {
           animationType="fade"
           onRequestClose={() => setAddVisible(false)}
         >
-          <Pressable 
-            style={styles.modalOverlay} 
-            onPress={() => setAddVisible(false)}
-          >
-            <Pressable 
-              style={[
-                styles.modalContent, 
-                { 
-                  maxWidth: 420,
-                  marginBottom: insets.bottom + 20,
-                }
-              ]}
-              onPress={(e) => e.stopPropagation()}
-            >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { maxWidth: 420 }]}>
               <Text style={styles.modalTitle}>Add Ingredient</Text>
 
               {/* Search input */}
@@ -709,7 +696,7 @@ export default function MyIngredientsScreen() {
                 style={styles.modalInput}
               />
 
-              {/* Quantity stepper */}
+              {/* Quantity stepper (interpreted as fraction of a bottle: 1 = full) */}
               <View
                 style={{
                   flexDirection: 'row',
@@ -726,16 +713,7 @@ export default function MyIngredientsScreen() {
                 >
                   <TouchableOpacity
                     onPress={() => setQty(Math.max(0, qty - 0.25))}
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 10,
-                      backgroundColor: '#1A1A1E',
-                      borderWidth: 1,
-                      borderColor: '#2A2A30',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
+                    style={[styles.modalButton, { paddingHorizontal: 12 }]}
                   >
                     <Text style={{ color: '#CFCFCF', fontSize: 18 }}>−</Text>
                   </TouchableOpacity>
@@ -746,16 +724,7 @@ export default function MyIngredientsScreen() {
                   </Text>
                   <TouchableOpacity
                     onPress={() => setQty(Math.min(1, qty + 0.25))}
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 10,
-                      backgroundColor: '#1A1A1E',
-                      borderWidth: 1,
-                      borderColor: '#2A2A30',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
+                    style={[styles.modalButton, { paddingHorizontal: 12 }]}
                   >
                     <Text style={{ color: '#CFCFCF', fontSize: 18 }}>＋</Text>
                   </TouchableOpacity>
@@ -795,7 +764,7 @@ export default function MyIngredientsScreen() {
                                 canonicalName || name,
                                 'Small',
                               ),
-                              qty: Math.max(0, Math.min(1, qty)),
+                              qty: Math.max(0, Math.min(1, qty)), // save fraction
                             },
                           ]);
                           setAddVisible(false);
@@ -858,8 +827,8 @@ export default function MyIngredientsScreen() {
                   <Text style={styles.modalButtonTextCancel}>Close</Text>
                 </TouchableOpacity>
               </View>
-            </Pressable>
-          </Pressable>
+            </View>
+          </View>
         </Modal>
       </SafeAreaView>
 
@@ -972,7 +941,7 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 20,
-    bottom: 105,
+    bottom: 28,
     width: 58,
     height: 58,
     borderRadius: 29,
@@ -996,7 +965,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingBottom: 20, 
   },
   modalContent: {
     backgroundColor: Colors.surface,
