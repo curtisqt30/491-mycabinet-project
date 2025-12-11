@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   Animated,
   Pressable,
+  Alert,
+  ScrollView,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import MenuButton from '@/components/ui/MenuButton';
 import NavigationDrawer from '@/components/ui/NavigationDrawer';
+import { useApi } from '@/app/lib/useApi';
 
 type Message = {
   id: string;
@@ -38,6 +41,15 @@ type SerializedMessage = {
 const STORAGE_KEY = '@mixology:assistant_messages_v1';
 const WELCOME_MESSAGE =
   "Hello! I'm your cocktail assistant. I can help you with cocktail recipes, ingredient suggestions, and drink recommendations. What would you like to know?";
+
+// Sample questions for quick access
+const SAMPLE_QUESTIONS = [
+  "What can I make with my current ingredients?",
+  "Suggest a cocktail for tonight",
+  "What ingredients am I missing for a Mojito?",
+  "How do I make a classic Old Fashioned?",
+  "Recommend a refreshing summer drink",
+];
 
 // Helper functions
 const createWelcomeMessage = (): Message => ({
@@ -60,8 +72,138 @@ const scrollToBottom = (
   setTimeout(() => ref.current?.scrollToEnd({ animated }), 100);
 };
 
+// Helper to render formatted text (bold, lists, etc.)
+const renderFormattedText = (text: string, isUser: boolean) => {
+  // Split by double newlines for paragraphs
+  const paragraphs = text.split(/\n\n+/);
+  
+  return paragraphs.map((paragraph, pIndex) => {
+    const lines = paragraph.split('\n');
+    
+    return (
+      <View key={pIndex} style={pIndex > 0 ? { marginTop: 12 } : {}}>
+        {lines.map((line, lIndex) => {
+          // Check if it's a bullet point
+          const bulletMatch = line.match(/^[\s]*[-•*]\s+(.+)$/);
+          if (bulletMatch) {
+            return (
+              <View
+                key={lIndex}
+                style={{
+                  flexDirection: 'row',
+                  marginTop: lIndex > 0 ? 6 : 0,
+                  paddingLeft: 8,
+                }}
+              >
+                <Text
+                  style={{
+                    color: isUser ? '#FFFFFF' : Colors.textPrimary,
+                    fontSize: 15,
+                    marginRight: 8,
+                  }}
+                >
+                  •
+                </Text>
+                <Text
+                  style={{
+                    flex: 1,
+                    color: isUser ? '#FFFFFF' : Colors.textPrimary,
+                    fontSize: 15,
+                    lineHeight: 22,
+                  }}
+                >
+                  {renderInlineFormatting(bulletMatch[1], isUser)}
+                </Text>
+              </View>
+            );
+          }
+          
+          // Check if it's a bold heading (starts with **)
+          const boldMatch = line.match(/^\*\*(.+?)\*\*$/);
+          if (boldMatch) {
+            return (
+              <Text
+                key={lIndex}
+                style={{
+                  color: isUser ? '#FFFFFF' : Colors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: '700',
+                  marginTop: lIndex > 0 ? 8 : 0,
+                  marginBottom: 4,
+                }}
+              >
+                {boldMatch[1]}
+              </Text>
+            );
+          }
+          
+          // Regular line with inline formatting
+          if (line.trim()) {
+            return (
+              <Text
+                key={lIndex}
+                style={{
+                  color: isUser ? '#FFFFFF' : Colors.textPrimary,
+                  fontSize: 15,
+                  lineHeight: 22,
+                  marginTop: lIndex > 0 ? 4 : 0,
+                }}
+              >
+                {renderInlineFormatting(line, isUser)}
+              </Text>
+            );
+          }
+          
+          return null;
+        })}
+      </View>
+    );
+  });
+};
+
+// Helper to render inline formatting (bold text)
+const renderInlineFormatting = (
+  text: string,
+  isUser: boolean,
+): React.ReactNode => {
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  const regex = /\*\*(.+?)\*\*/g;
+  let match;
+  
+  while ((match = regex.exec(text)) !== null) {
+    // Add text before the match
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+    
+    // Add bold text
+    parts.push(
+      <Text
+        key={match.index}
+        style={{
+          fontWeight: '700',
+          color: isUser ? '#FFFFFF' : Colors.textPrimary,
+        }}
+      >
+        {match[1]}
+      </Text>
+    );
+    
+    lastIndex = regex.lastIndex;
+  }
+  
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+  
+  return parts.length > 0 ? <>{parts}</> : text;
+};
+
 export default function AssistantScreen() {
   const insets = useSafeAreaInsets();
+  const { post } = useApi();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -144,7 +286,7 @@ export default function AssistantScreen() {
     }
   };
 
-  // Generate mock assistant response based on user input
+  // Generate fallback mock response if API fails
   const generateMockResponse = (userMessage: string): string => {
     const lowerMessage = userMessage.toLowerCase();
 
@@ -182,10 +324,11 @@ export default function AssistantScreen() {
     return "That's interesting! I'm here to help with cocktail recipes, ingredient suggestions, and drink recommendations. What would you like to know?";
   };
 
-  const handleSend = () => {
-    if (inputText.trim() === '' || isLoading) return;
+  const handleSend = async (message?: string) => {
+    const messageToSend = message || inputText.trim();
+    if (messageToSend === '' || isLoading) return;
 
-    const userMessage = inputText.trim();
+    const userMessage = messageToSend.trim();
     const newMessage: Message = {
       id: Date.now().toString(),
       text: userMessage,
@@ -198,21 +341,59 @@ export default function AssistantScreen() {
     setIsLoading(true);
     scrollToBottom(flatListRef);
 
-    // Simulate assistant thinking time (1-2 seconds)
-    setTimeout(
-      () => {
-        const assistantResponse: Message = {
-          id: `${Date.now() + 1}`,
-          text: generateMockResponse(userMessage),
-          isUser: false,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, assistantResponse]);
-        setIsLoading(false);
-        scrollToBottom(flatListRef);
-      },
-      1000 + Math.random() * 1000,
-    );
+    try {
+      // Build conversation history from previous messages (excluding welcome message)
+      const conversationHistory = messages
+        .filter((msg) => msg.id !== messages[0]?.id || !msg.text.includes('Hello!'))
+        .map((msg) => ({
+          role: msg.isUser ? 'user' : 'assistant',
+          content: msg.text,
+        }));
+
+      // Call backend API (pantry ingredients are now loaded from database)
+      const response = await post<{ message: string; success: boolean }>(
+        '/assistant/chat',
+        {
+          message: userMessage,
+          conversation_history: conversationHistory,
+        },
+      );
+
+      const assistantResponse: Message = {
+        id: `${Date.now() + 1}`,
+        text: response.message,
+        isUser: false,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, assistantResponse]);
+      scrollToBottom(flatListRef);
+    } catch (error: any) {
+      console.error('Assistant API error:', error);
+      
+      // Fallback to mock response on error
+      const assistantResponse: Message = {
+        id: `${Date.now() + 1}`,
+        text: generateMockResponse(userMessage),
+        isUser: false,
+        timestamp: new Date(),
+      };
+      
+      setMessages((prev) => [...prev, assistantResponse]);
+      
+      // Show error alert only for non-auth errors
+      if (error?.status !== 401 && error?.status !== 403) {
+        Alert.alert(
+          'Connection Error',
+          'Unable to reach the assistant. Using fallback response.',
+          [{ text: 'OK' }],
+        );
+      }
+      
+      scrollToBottom(flatListRef);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const renderMessage = ({ item }: { item: Message }) => (
@@ -222,14 +403,41 @@ export default function AssistantScreen() {
         item.isUser ? styles.userMessage : styles.assistantMessage,
       ]}
     >
+      {!item.isUser && (
+        <View style={styles.avatarContainer}>
+          <View style={styles.avatar}>
+            <Ionicons name="sparkles" size={16} color={Colors.accentPrimary} />
+          </View>
+        </View>
+      )}
       <View
         style={[
           styles.messageBubble,
           item.isUser ? styles.userBubble : styles.assistantBubble,
         ]}
       >
-        <Text style={styles.messageText}>{item.text}</Text>
+        {!item.isUser ? (
+          <View style={styles.formattedTextContainer}>
+            {renderFormattedText(item.text, item.isUser)}
+          </View>
+        ) : (
+          <Text
+            style={[
+              styles.messageText,
+              item.isUser ? styles.userMessageText : styles.assistantMessageText,
+            ]}
+          >
+            {item.text}
+          </Text>
+        )}
       </View>
+      {item.isUser && (
+        <View style={styles.avatarContainer}>
+          <View style={[styles.avatar, styles.userAvatar]}>
+            <Ionicons name="person" size={14} color={Colors.textPrimary} />
+          </View>
+        </View>
+      )}
     </View>
   );
 
@@ -368,14 +576,40 @@ export default function AssistantScreen() {
           ListEmptyComponent={
             loadingMessages ? null : (
               <View style={styles.emptyState}>
-                <Ionicons
-                  name="chatbubbles-outline"
-                  size={48}
-                  color={Colors.textSecondary}
-                />
-                <Text style={styles.emptyText}>
-                  Start a conversation with your cocktail assistant
+                <View style={styles.emptyIconContainer}>
+                  <Ionicons
+                    name="sparkles"
+                    size={56}
+                    color={Colors.accentPrimary}
+                  />
+                </View>
+                <Text style={styles.emptyTitle}>
+                  Your Cocktail Assistant
                 </Text>
+                <Text style={styles.emptyText}>
+                  Ask me anything about cocktails, recipes, or ingredients!
+                </Text>
+                <View style={styles.sampleQuestionsContainer}>
+                  <Text style={styles.sampleQuestionsTitle}>
+                    Try asking:
+                  </Text>
+                  <View style={styles.sampleQuestionsGrid}>
+                    {SAMPLE_QUESTIONS.map((question, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.sampleQuestionChip}
+                        onPress={() => {
+                          void handleSend(question);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.sampleQuestionText}>
+                          {question}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
               </View>
             )
           }
@@ -386,15 +620,46 @@ export default function AssistantScreen() {
         <View
           style={[styles.inputContainer, { paddingBottom: insets.bottom + 8 }]}
         >
+          {/* Show sample questions if only welcome message exists */}
+          {messages.length === 1 && messages[0]?.text.includes('Hello!') && (
+            <View style={styles.quickQuestionsContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.quickQuestionsScroll}
+              >
+                {SAMPLE_QUESTIONS.slice(0, 3).map((question, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.quickQuestionChip}
+                    onPress={() => {
+                      void handleSend(question);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.quickQuestionText}>{question}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
           <View style={styles.inputWrapper}>
             <TextInput
               style={styles.input}
-              placeholder="Type a message..."
+              placeholder="Ask me anything about cocktails..."
               placeholderTextColor={Colors.textSecondary}
               value={inputText}
               onChangeText={setInputText}
-              multiline
+              multiline={false}
               maxLength={500}
+              onSubmitEditing={() => {
+                if (inputText.trim() && !isLoading) {
+                  void handleSend();
+                }
+              }}
+              returnKeyType="send"
+              enablesReturnKeyAutomatically={true}
+              blurOnSubmit={false}
             />
             <TouchableOpacity
               style={[
@@ -402,7 +667,9 @@ export default function AssistantScreen() {
                 (inputText.trim() === '' || isLoading) &&
                   styles.sendButtonDisabled,
               ]}
-              onPress={handleSend}
+              onPress={() => {
+                void handleSend();
+              }}
               disabled={inputText.trim() === '' || isLoading}
             >
               {isLoading ? (
@@ -480,8 +747,10 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   messageContainer: {
-    marginVertical: 6,
+    marginVertical: 8,
     flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 4,
   },
   userMessage: {
     justifyContent: 'flex-end',
@@ -489,11 +758,38 @@ const styles = StyleSheet.create({
   assistantMessage: {
     justifyContent: 'flex-start',
   },
+  avatarContainer: {
+    width: 32,
+    height: 32,
+    marginHorizontal: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.buttonBackground,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  userAvatar: {
+    backgroundColor: Colors.accentPrimary + '20',
+    borderColor: Colors.accentPrimary + '40',
+  },
   messageBubble: {
-    maxWidth: '80%',
+    maxWidth: '75%',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 20,
+    borderRadius: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    flexShrink: 1,
   },
   userBubble: {
     backgroundColor: Colors.accentPrimary,
@@ -502,23 +798,108 @@ const styles = StyleSheet.create({
   assistantBubble: {
     backgroundColor: Colors.buttonBackground,
     borderBottomLeftRadius: 4,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
   },
   messageText: {
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  userMessageText: {
+    color: '#FFFFFF',
+    fontWeight: '500',
+  },
+  assistantMessageText: {
     color: Colors.textPrimary,
+  },
+  formattedTextContainer: {
+    flex: 1,
   },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+  },
+  emptyIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.accentPrimary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginBottom: 8,
+    textAlign: 'center',
   },
   emptyText: {
-    marginTop: 16,
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.textSecondary,
     textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 22,
+  },
+  sampleQuestionsContainer: {
+    width: '100%',
+    maxWidth: 400,
+  },
+  sampleQuestionsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  sampleQuestionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  sampleQuestionChip: {
+    backgroundColor: Colors.buttonBackground,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 8,
+    maxWidth: '100%',
+  },
+  sampleQuestionText: {
+    fontSize: 14,
+    color: Colors.textPrimary,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  quickQuestionsContainer: {
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  quickQuestionsScroll: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 4,
+    paddingRight: 16,
+  },
+  quickQuestionChip: {
+    backgroundColor: Colors.buttonBackground,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  quickQuestionText: {
+    fontSize: 13,
+    color: Colors.textPrimary,
+    fontWeight: '500',
   },
   inputContainer: {
     paddingHorizontal: 16,
@@ -529,34 +910,46 @@ const styles = StyleSheet.create({
   },
   inputWrapper: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     backgroundColor: Colors.inputBackground,
     borderRadius: 24,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.inputBorder,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    minHeight: 48,
-    maxHeight: 120,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    minHeight: 52,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   input: {
     flex: 1,
     color: Colors.textPrimary,
     fontSize: 16,
-    maxHeight: 104,
     paddingVertical: 8,
+    paddingRight: 4,
+    maxHeight: 52,
   },
   sendButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: Colors.accentPrimary,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
+    shadowColor: Colors.accentPrimary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   sendButtonDisabled: {
     backgroundColor: Colors.buttonBackground,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   typingBubble: {
     paddingVertical: 12,
