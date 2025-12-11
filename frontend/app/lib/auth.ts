@@ -26,7 +26,7 @@ export type User = {
   email: string;
   display_name?: string;
   avatar_url?: string;
-  onboarding_complete: boolean; 
+  onboarding_complete: boolean;
 };
 
 export type AuthState = {

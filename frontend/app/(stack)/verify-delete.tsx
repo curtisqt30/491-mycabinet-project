@@ -54,7 +54,7 @@ export default function VerifyDeleteScreen() {
     if (!canSubmit || submitting) {
       return;
     }
-    
+
     if (!accessToken) {
       Alert.alert('Error', 'You must be logged in to delete your account.');
       return;

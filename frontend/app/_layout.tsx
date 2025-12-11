@@ -24,7 +24,7 @@ const TABS = [
 function RootLayoutNav() {
   const segments = useSegments();
   const insets = useSafeAreaInsets();
-  
+
   // Only show bottom nav in (tabs) group
   const showBottomNav = segments[0] === '(tabs)';
 
@@ -41,13 +41,15 @@ function RootLayoutNav() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="+not-found" />
       </Stack>
-      
+
       {showBottomNav && (
-        <View style={[styles.dock, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <View
+          style={[styles.dock, { paddingBottom: Math.max(insets.bottom, 12) }]}
+        >
           <BottomNav items={TABS as any} />
         </View>
       )}
-      
+
       <StatusBar style="light" backgroundColor="#101010" />
     </View>
   );
