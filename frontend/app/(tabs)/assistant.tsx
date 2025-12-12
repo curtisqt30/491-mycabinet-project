@@ -618,7 +618,7 @@ export default function AssistantScreen() {
 
         {/* Input area */}
         <View
-          style={[styles.inputContainer, { paddingBottom: insets.bottom + 8 }]}
+          style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom + 100, 100) }]}
         >
           {/* Show sample questions if only welcome message exists */}
           {messages.length === 1 && messages[0]?.text.includes('Hello!') && (
