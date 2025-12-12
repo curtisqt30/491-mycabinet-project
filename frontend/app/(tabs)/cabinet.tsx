@@ -763,17 +763,17 @@ export default function MyIngredientsScreen() {
         <MenuButton onPress={handleMenuPress} />
       </View>
 
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        {/* Centered page header */}
-        <View style={[styles.headerWrap, { paddingTop: insets.top + 56 }]}>
-          <Text style={styles.title}>My Cabinet</Text>
-          {loading ? (
-            <Text style={styles.subtle}>Loading…</Text>
-          ) : saving ? (
-            <Text style={styles.subtle}>Saving…</Text>
-          ) : null}
-        </View>
+      {/* Centered page header */}
+      <View style={[styles.headerWrap, { paddingTop: insets.top + 56 }]}>
+        <Text style={styles.title}>My Cabinet</Text>
+        {loading ? (
+          <Text style={styles.subtle}>Loading…</Text>
+        ) : saving ? (
+          <Text style={styles.subtle}>Saving…</Text>
+        ) : null}
+      </View>
 
+      <View style={styles.container}>
         {/* Tabs */}
         <View style={styles.tabsRow}>
           <Tab
@@ -1059,7 +1059,7 @@ export default function MyIngredientsScreen() {
             </Pressable>
           </Pressable>
         </Modal>
-      </SafeAreaView>
+      </View>
 
       {/* Navigation drawer */}
       <NavigationDrawer visible={drawerVisible} onClose={handleCloseDrawer} />

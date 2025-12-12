@@ -153,7 +153,7 @@ export default function HomeScreen() {
   const showSkeleton = loading && !initialized;
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <View style={styles.screen}>
       {/* Top-left hamburger menu */}
       <Pressable
         onPress={handleMenuPress}
@@ -229,7 +229,7 @@ export default function HomeScreen() {
 
       {/* Navigation drawer */}
       <NavigationDrawer visible={drawerVisible} onClose={handleCloseDrawer} />
-    </SafeAreaView>
+    </View>
   );
 }
 

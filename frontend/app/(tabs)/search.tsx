@@ -356,10 +356,9 @@ export default function SearchScreen() {
         <MenuButton onPress={handleMenuPress} />
       </View>
 
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        {/* Header with title + search row */}
-        <View style={[styles.headerWrap, { paddingTop: insets.top + 56 }]}>
-          <Text style={styles.title}>Search</Text>
+      {/* Header with title + search row */}
+      <View style={[styles.headerWrap, { paddingTop: insets.top + 56 }]}>
+        <Text style={styles.title}>Search</Text>
 
           {/* Search Input + Button */}
           <View style={styles.searchRow}>
@@ -390,10 +389,10 @@ export default function SearchScreen() {
               {`"${notFoundTerm}" not found — showing popular drinks instead`}
             </Text>
           )}
-        </View>
+      </View>
 
-        {/* Results below header */}
-        <View style={styles.resultsWrap}>
+      {/* Results below header */}
+      <View style={styles.resultsWrap}>
           {loading && <ActivityIndicator style={{ margin: 12 }} />}
           {error && !loading && (
             <Text style={styles.error}>Error: {error}</Text>
@@ -475,8 +474,7 @@ export default function SearchScreen() {
               ) : null
             }
           />
-        </View>
-      </SafeAreaView>
+      </View>
 
       {/* Navigation drawer */}
       <NavigationDrawer visible={drawerVisible} onClose={handleCloseDrawer} />
