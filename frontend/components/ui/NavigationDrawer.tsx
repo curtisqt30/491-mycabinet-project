@@ -34,8 +34,9 @@ const ANIMATION_DURATION = 280;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const MENU_ITEMS: MenuItem[] = [
+  { label: 'Home', icon: 'home-outline', route: '/home' },
   { label: 'Search', icon: 'search-outline', route: '/search' },
-  { label: 'My Profile', icon: 'person-outline', route: '/profile'},
+  { label: 'My Profile', icon: 'person-outline', route: '/profile' },
   { label: 'My Cabinet', icon: 'cube-outline', route: '/cabinet' },
   { label: 'Favorites', icon: 'heart-outline', route: '/favorites' },
   { label: 'Recommendations', icon: 'sparkles-outline', route: '/assistant' },
