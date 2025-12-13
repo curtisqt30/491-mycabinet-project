@@ -804,14 +804,12 @@ export default function MyIngredientsScreen() {
 
         {/* Toast */}
         {toast && (
-          <View style={{
-            position: 'absolute',
-            bottom: 160, 
-            left: 20,
-            right: 20,
-            zIndex: 100,
-          }}>
-            <Toast text={toast.text} onUndo={toast.onUndo} />
+          <View style={styles.toastWrapper}>
+            <Toast 
+              text={toast.text} 
+              onUndo={toast.onUndo}
+              containerStyle={styles.toastInner}
+            />
           </View>
         )}
 
@@ -1092,10 +1090,17 @@ const styles = StyleSheet.create({
   headerWrap: { backgroundColor: Colors.background, alignItems: 'center' },
   toastWrapper: {
     position: 'absolute',
-    top: 120,
+    bottom: 170,
     left: 20,
     right: 20,
     zIndex: 100,
+  },
+  toastInner: {
+    // Override Toast's absolute positioning
+    position: 'relative',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   menuWrap: { position: 'absolute', left: 14, zIndex: 10 },
   title: {
