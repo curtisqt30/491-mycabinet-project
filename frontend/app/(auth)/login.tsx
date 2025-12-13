@@ -6,6 +6,11 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import { Link } from 'expo-router';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
@@ -98,81 +103,105 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Animated.View style={{ transform: [{ translateX: shakeX }] }}>
-        <Text style={styles.title}>Sign in</Text>
-      </Animated.View>
-      <Text style={styles.subtitle}>Please enter your account here</Text>
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoid}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <Animated.View style={{ transform: [{ translateX: shakeX }] }}>
+              <Text style={styles.title}>Sign in</Text>
+            </Animated.View>
+            <Text style={styles.subtitle}>Please enter your account here</Text>
 
-      <AuthInput
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        type="email"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        autoComplete="email"
-        textContentType="emailAddress"
-        returnKeyType="next"
-        editable={!isLoading}
-      />
+            <AuthInput
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              type="email"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+              textContentType="emailAddress"
+              returnKeyType="next"
+              editable={!isLoading}
+            />
 
-      <AuthInput
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        type="password"
-        autoComplete="password"
-        textContentType="password"
-        returnKeyType="go"
-        editable={!isLoading}
-        onSubmitEditing={() => {
-          void handleLogin();
-        }}
-      />
+            <AuthInput
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              type="password"
+              autoComplete="password"
+              textContentType="password"
+              returnKeyType="go"
+              editable={!isLoading}
+              onSubmitEditing={() => {
+                void handleLogin();
+              }}
+            />
 
-      <View style={styles.row}>
-        <CheckBox
-          checked={rememberMe}
-          onChange={setRememberMe}
-          label="Keep me signed in"
-          disabled={isLoading}
-        />
-        <Link href="/reset-password" asChild>
-          <Text style={styles.forgotLink}>Forgot password?</Text>
-        </Link>
-      </View>
+            <View style={styles.row}>
+              <CheckBox
+                checked={rememberMe}
+                onChange={setRememberMe}
+                label="Keep me signed in"
+                disabled={isLoading}
+              />
+              <Link href="/reset-password" asChild>
+                <Text style={styles.forgotLink}>Forgot password?</Text>
+              </Link>
+            </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {success ? <Text style={styles.success}>{success}</Text> : null}
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {success ? <Text style={styles.success}>{success}</Text> : null}
 
-      <FormButton
-        title={isLoading ? 'Signing in…' : 'Login'}
-        onPress={() => {
-          void handleLogin();
-        }}
-        disabled={!allValid || isLoading}
-      />
-      {isLoading ? <ActivityIndicator style={{ marginTop: 12 }} /> : null}
+            <FormButton
+              title={isLoading ? 'Signing in…' : 'Login'}
+              onPress={() => {
+                void handleLogin();
+              }}
+              disabled={!allValid || isLoading}
+            />
+            {isLoading ? <ActivityIndicator style={{ marginTop: 12 }} /> : null}
 
-      <Text style={styles.newUserText}>
-        New user?{' '}
-        <Link href="/create-account" asChild>
-          <Text style={styles.link}>Sign up here</Text>
-        </Link>
-      </Text>
+            <Text style={styles.newUserText}>
+              New user?{' '}
+              <Link href="/create-account" asChild>
+                <Text style={styles.link}>Sign up here</Text>
+              </Link>
+            </Text>
 
-      {/* Info about remember me */}
-      <Text style={styles.infoText}>
-        {rememberMe
-          ? '✓ You will stay signed in on this device'
-          : 'You will need to sign in again next time'}
-      </Text>
-    </View>
+            {/* Info about remember me */}
+            <Text style={styles.infoText}>
+              {rememberMe
+                ? '✓ You will stay signed in on this device'
+                : 'You will need to sign in again next time'}
+            </Text>
+          </View>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 60,
+  },
   container: {
     flex: 1,
     justifyContent: 'center',

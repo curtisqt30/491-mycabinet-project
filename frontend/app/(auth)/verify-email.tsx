@@ -1,12 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  Alert,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
+  ScrollView,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import FormButton from '@/components/ui/FormButton';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import { useAuth } from '../lib/AuthContext';
 import type { Href } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import BackButton from '@/components/ui/BackButton';
 
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
@@ -27,7 +36,6 @@ export default function VerifyEmailCodeScreen() {
   const intent: 'verify' = 'verify';
   const title = 'Verify your email';
   const subtitle = 'We emailed you a 6-digit verification code.';
-  const insets = useSafeAreaInsets();
 
   const [codes, setCodes] = useState<string[]>(Array(CODE_LEN).fill(''));
   const [submitting, setSubmitting] = useState(false);
@@ -157,64 +165,91 @@ export default function VerifyEmailCodeScreen() {
         body: JSON.stringify({ email: normalizedEmail, intent }),
       });
       Alert.alert('Code sent', 'Check your inbox for a new code.');
-    } catch {
+    } catch (_e) {
       Alert.alert("Couldn't resend", 'Please try again shortly.');
     }
   };
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.backWrap, { top: Math.max(14, insets.top) }]}>
-        <BackButton />
-      </View>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>
-        {subtitle} {normalizedEmail ? `(${normalizedEmail})` : ''}
-      </Text>
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoid}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.subtitle}>
+              {subtitle} {normalizedEmail ? `(${normalizedEmail})` : ''}
+            </Text>
 
-      <View style={styles.row}>
-        {Array.from({ length: CODE_LEN }).map((_, i) => (
-          <TextInput
-            key={i}
-            ref={(el) => {
-              inputs.current[i] = el;
-            }}
-            value={codes[i]}
-            onChangeText={(v) => setDigit(i, v)}
-            onKeyPress={({ nativeEvent }) => onKeyPress(i, nativeEvent.key)}
-            keyboardType="number-pad"
-            textContentType="oneTimeCode"
-            maxLength={1}
-            style={styles.box}
-            returnKeyType={i === CODE_LEN - 1 ? 'done' : 'next'}
-            editable={!submitting}
-          />
-        ))}
-      </View>
+            <View style={styles.row}>
+              {Array.from({ length: CODE_LEN }).map((_, i) => (
+                <TextInput
+                  key={i}
+                  ref={(el) => {
+                    inputs.current[i] = el;
+                  }}
+                  value={codes[i]}
+                  onChangeText={(v) => setDigit(i, v)}
+                  onKeyPress={({ nativeEvent }) =>
+                    onKeyPress(i, nativeEvent.key)
+                  }
+                  keyboardType="number-pad"
+                  textContentType="oneTimeCode"
+                  maxLength={1}
+                  style={styles.box}
+                  returnKeyType={i === CODE_LEN - 1 ? 'done' : 'next'}
+                  editable={!submitting}
+                />
+              ))}
+            </View>
 
-      <FormButton
-        title={submitting ? 'Verifying…' : 'Verify'}
-        onPress={() => {
-          void handleVerify();
-        }}
-        disabled={!canSubmit || submitting}
-      />
+            <FormButton
+              title={submitting ? 'Verifying…' : 'Verify'}
+              onPress={() => {
+                void handleVerify();
+              }}
+              disabled={!canSubmit || submitting}
+            />
 
-      <Text
-        style={styles.resend}
-        onPress={() => {
-          void handleResend();
-        }}
-      >
-        Resend code
-      </Text>
-    </View>
+            <Text
+              style={styles.resend}
+              onPress={() => {
+                void handleResend();
+              }}
+            >
+              Resend code
+            </Text>
+
+            <Text style={styles.cancel} onPress={() => router.back()}>
+              Cancel
+            </Text>
+          </View>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
 const BOX_SIZE = 50;
 
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 60,
+  },
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -234,8 +269,13 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 16,
+    paddingHorizontal: 20,
   },
-  row: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  row: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 20,
+  },
   box: {
     width: BOX_SIZE,
     height: BOX_SIZE,
@@ -247,10 +287,15 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
-  resend: { marginTop: 12, color: Colors.link, fontSize: 14 },
-  backWrap: {
-    position: 'absolute',
-    left: 14,
-    zIndex: 10,
+  resend: {
+    marginTop: 12,
+    color: Colors.link,
+    fontSize: 14,
+  },
+  cancel: {
+    marginTop: 8,
+    color: Colors.textSecondary,
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
 });

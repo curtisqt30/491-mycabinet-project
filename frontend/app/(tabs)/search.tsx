@@ -360,120 +360,118 @@ export default function SearchScreen() {
       <View style={[styles.headerWrap, { paddingTop: insets.top + 56 }]}>
         <Text style={styles.title}>Search</Text>
 
-          {/* Search Input + Button */}
-          <View style={styles.searchRow}>
-            <TextInput
-              placeholder="Type an ingredient or a drink…"
-              placeholderTextColor="#9A968A"
-              value={query}
-              onChangeText={setQuery}
-              autoCapitalize="none"
-              style={styles.searchInput}
-              returnKeyType="search"
-              onSubmitEditing={onPressSearch}
-            />
+        {/* Search Input + Button */}
+        <View style={styles.searchRow}>
+          <TextInput
+            placeholder="Type an ingredient or a drink…"
+            placeholderTextColor="#9A968A"
+            value={query}
+            onChangeText={setQuery}
+            autoCapitalize="none"
+            style={styles.searchInput}
+            returnKeyType="search"
+            onSubmitEditing={onPressSearch}
+          />
 
-            <Pressable
-              onPress={onPressSearch}
-              style={[styles.searchBtn, !canSearch && styles.searchBtnDisabled]}
-              accessibilityRole="button"
-              disabled={!canSearch}
-            >
-              <Text style={styles.searchBtnText}>Search</Text>
-            </Pressable>
-          </View>
+          <Pressable
+            onPress={onPressSearch}
+            style={[styles.searchBtn, !canSearch && styles.searchBtnDisabled]}
+            accessibilityRole="button"
+            disabled={!canSearch}
+          >
+            <Text style={styles.searchBtnText}>Search</Text>
+          </Pressable>
+        </View>
 
-          {/* Not found banner */}
-          {!!notFoundTerm && !loading && !error && (
-            <Text style={styles.banner}>
-              {`"${notFoundTerm}" not found — showing popular drinks instead`}
-            </Text>
-          )}
+        {/* Not found banner */}
+        {!!notFoundTerm && !loading && !error && (
+          <Text style={styles.banner}>
+            {`"${notFoundTerm}" not found — showing popular drinks instead`}
+          </Text>
+        )}
       </View>
 
       {/* Results below header */}
       <View style={styles.resultsWrap}>
-          {loading && <ActivityIndicator style={{ margin: 12 }} />}
-          {error && !loading && (
-            <Text style={styles.error}>Error: {error}</Text>
-          )}
-          {!loading && !error && results.length === 0 && (
-            <Text style={styles.empty}>
-              No results. Try another ingredient or drink name.
-            </Text>
-          )}
+        {loading && <ActivityIndicator style={{ margin: 12 }} />}
+        {error && !loading && <Text style={styles.error}>Error: {error}</Text>}
+        {!loading && !error && results.length === 0 && (
+          <Text style={styles.empty}>
+            No results. Try another ingredient or drink name.
+          </Text>
+        )}
 
-          <FlatList
-            ref={listRef}
-            data={pagedResults}
-            keyExtractor={(item) => item.idDrink}
-            contentContainerStyle={{ paddingBottom: 140 }}
-            initialNumToRender={40}
-            windowSize={10}
-            removeClippedSubviews={false}
-            renderItem={({ item }) => {
-              const fav = favIds.has(item.idDrink);
-              return (
-                <View style={styles.cardRow}>
-                  <Pressable
-                    onPress={() => openDrink(item)}
-                    accessibilityRole="button"
-                    style={styles.rowLeft}
-                  >
-                    {item.strDrinkThumb ? (
-                      <Image
-                        source={{ uri: toPreview(item.strDrinkThumb) }}
-                        style={styles.thumbSm}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View style={[styles.thumbSm, styles.thumbFallback]}>
-                        <Text style={{ color: '#9A968A' }}>No Image</Text>
-                      </View>
-                    )}
-                    <Text style={styles.cardTitle} numberOfLines={2}>
-                      {item.strDrink}
-                    </Text>
-                  </Pressable>
-
-                  {/* Heart toggle (persisted) */}
-                  <Pressable
-                    testID="fav-toggle"
-                    onPress={() =>
-                      void toggle({
-                        id: item.idDrink,
-                        name: item.strDrink,
-                        thumbUrl: item.strDrinkThumb ?? null,
-                      })
-                    }
-                    hitSlop={10}
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      fav ? 'Remove from favorites' : 'Add to favorites'
-                    }
-                    style={styles.heartBtn}
-                  >
-                    <Ionicons
-                      name={fav ? 'heart' : 'heart-outline'}
-                      size={20}
-                      color={fav ? '#FF6B6B' : (Colors.textPrimary as string)}
-                    />
-                  </Pressable>
-                </View>
-              );
-            }}
-            showsVerticalScrollIndicator={false}
-            ListFooterComponent={() =>
-              pagedResults.length < results.length ? (
+        <FlatList
+          ref={listRef}
+          data={pagedResults}
+          keyExtractor={(item) => item.idDrink}
+          contentContainerStyle={{ paddingBottom: 140 }}
+          initialNumToRender={40}
+          windowSize={10}
+          removeClippedSubviews={false}
+          renderItem={({ item }) => {
+            const fav = favIds.has(item.idDrink);
+            return (
+              <View style={styles.cardRow}>
                 <Pressable
-                  onPress={() => setPage((p) => p + 1)}
-                  style={{ padding: 16, alignItems: 'center' }}
+                  onPress={() => openDrink(item)}
+                  accessibilityRole="button"
+                  style={styles.rowLeft}
                 >
-                  <Text style={{ color: '#fff' }}>Load more</Text>
+                  {item.strDrinkThumb ? (
+                    <Image
+                      source={{ uri: toPreview(item.strDrinkThumb) }}
+                      style={styles.thumbSm}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={[styles.thumbSm, styles.thumbFallback]}>
+                      <Text style={{ color: '#9A968A' }}>No Image</Text>
+                    </View>
+                  )}
+                  <Text style={styles.cardTitle} numberOfLines={2}>
+                    {item.strDrink}
+                  </Text>
                 </Pressable>
-              ) : null
-            }
-          />
+
+                {/* Heart toggle (persisted) */}
+                <Pressable
+                  testID="fav-toggle"
+                  onPress={() =>
+                    void toggle({
+                      id: item.idDrink,
+                      name: item.strDrink,
+                      thumbUrl: item.strDrinkThumb ?? null,
+                    })
+                  }
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    fav ? 'Remove from favorites' : 'Add to favorites'
+                  }
+                  style={styles.heartBtn}
+                >
+                  <Ionicons
+                    name={fav ? 'heart' : 'heart-outline'}
+                    size={20}
+                    color={fav ? '#FF6B6B' : (Colors.textPrimary as string)}
+                  />
+                </Pressable>
+              </View>
+            );
+          }}
+          showsVerticalScrollIndicator={false}
+          ListFooterComponent={() =>
+            pagedResults.length < results.length ? (
+              <Pressable
+                onPress={() => setPage((p) => p + 1)}
+                style={{ padding: 16, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#fff' }}>Load more</Text>
+              </Pressable>
+            ) : null
+          }
+        />
       </View>
 
       {/* Navigation drawer */}

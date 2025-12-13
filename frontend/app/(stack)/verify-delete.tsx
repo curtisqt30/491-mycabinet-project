@@ -1,5 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  Alert,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
+  ScrollView,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import FormButton from '@/components/ui/FormButton';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
@@ -120,67 +131,93 @@ export default function VerifyDeleteScreen() {
         body: JSON.stringify({ email: normalizedEmail, intent: 'delete' }),
       });
       Alert.alert('Code sent', 'Check your inbox for a new code.');
-    } catch {
+    } catch (_e) {
       Alert.alert("Couldn't resend", 'Please try again shortly.');
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Confirm Account Deletion</Text>
-      <Text style={styles.subtitle}>
-        We sent a 6-digit code to {normalizedEmail || 'your email'}. Enter it to
-        permanently delete your account.
-      </Text>
-      <Text style={styles.warning}>⚠️ This action cannot be undone</Text>
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoid}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <Text style={styles.title}>Confirm Account Deletion</Text>
+            <Text style={styles.subtitle}>
+              We sent a 6-digit code to {normalizedEmail || 'your email'}. Enter
+              it to permanently delete your account.
+            </Text>
+            <Text style={styles.warning}>⚠️ This action cannot be undone</Text>
 
-      <View style={styles.row}>
-        {Array.from({ length: CODE_LEN }).map((_, i) => (
-          <TextInput
-            key={i}
-            ref={(el) => {
-              inputs.current[i] = el;
-            }}
-            value={codes[i]}
-            onChangeText={(v) => setDigit(i, v)}
-            onKeyPress={({ nativeEvent }) => onKeyPress(i, nativeEvent.key)}
-            keyboardType="number-pad"
-            textContentType="oneTimeCode"
-            maxLength={1}
-            style={styles.box}
-            returnKeyType={i === CODE_LEN - 1 ? 'done' : 'next'}
-          />
-        ))}
-      </View>
+            <View style={styles.row}>
+              {Array.from({ length: CODE_LEN }).map((_, i) => (
+                <TextInput
+                  key={i}
+                  ref={(el) => {
+                    inputs.current[i] = el;
+                  }}
+                  value={codes[i]}
+                  onChangeText={(v) => setDigit(i, v)}
+                  onKeyPress={({ nativeEvent }) =>
+                    onKeyPress(i, nativeEvent.key)
+                  }
+                  keyboardType="number-pad"
+                  textContentType="oneTimeCode"
+                  maxLength={1}
+                  style={styles.box}
+                  returnKeyType={i === CODE_LEN - 1 ? 'done' : 'next'}
+                />
+              ))}
+            </View>
 
-      <FormButton
-        title={submitting ? 'Deleting...' : 'Delete Account'}
-        onPress={() => {
-          void handleVerify();
-        }}
-        disabled={!canSubmit || submitting}
-        variant="danger"
-      />
+            <FormButton
+              title={submitting ? 'Deleting...' : 'Delete Account'}
+              onPress={() => {
+                void handleVerify();
+              }}
+              disabled={!canSubmit || submitting}
+              variant="danger"
+            />
 
-      <Text
-        style={styles.resend}
-        onPress={() => {
-          void handleResend();
-        }}
-      >
-        Resend code
-      </Text>
+            <Text
+              style={styles.resend}
+              onPress={() => {
+                void handleResend();
+              }}
+            >
+              Resend code
+            </Text>
 
-      <Text style={styles.cancel} onPress={() => router.back()}>
-        Cancel
-      </Text>
-    </View>
+            <Text style={styles.cancel} onPress={() => router.back()}>
+              Cancel
+            </Text>
+          </View>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
 const BOX_SIZE = 50;
 
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 140,
+  },
   container: {
     flex: 1,
     justifyContent: 'center',

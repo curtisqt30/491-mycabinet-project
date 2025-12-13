@@ -44,11 +44,11 @@ const WELCOME_MESSAGE =
 
 // Sample questions for quick access
 const SAMPLE_QUESTIONS = [
-  "What can I make with my current ingredients?",
-  "Suggest a cocktail for tonight",
-  "What ingredients am I missing for a Mojito?",
-  "How do I make a classic Old Fashioned?",
-  "Recommend a refreshing summer drink",
+  'What can I make with my current ingredients?',
+  'Suggest a cocktail for tonight',
+  'What ingredients am I missing for a Mojito?',
+  'How do I make a classic Old Fashioned?',
+  'Recommend a refreshing summer drink',
 ];
 
 // Helper functions
@@ -76,10 +76,10 @@ const scrollToBottom = (
 const renderFormattedText = (text: string, isUser: boolean) => {
   // Split by double newlines for paragraphs
   const paragraphs = text.split(/\n\n+/);
-  
+
   return paragraphs.map((paragraph, pIndex) => {
     const lines = paragraph.split('\n');
-    
+
     return (
       <View key={pIndex} style={pIndex > 0 ? { marginTop: 12 } : {}}>
         {lines.map((line, lIndex) => {
@@ -117,7 +117,7 @@ const renderFormattedText = (text: string, isUser: boolean) => {
               </View>
             );
           }
-          
+
           // Check if it's a bold heading (starts with **)
           const boldMatch = line.match(/^\*\*(.+?)\*\*$/);
           if (boldMatch) {
@@ -136,7 +136,7 @@ const renderFormattedText = (text: string, isUser: boolean) => {
               </Text>
             );
           }
-          
+
           // Regular line with inline formatting
           if (line.trim()) {
             return (
@@ -153,7 +153,7 @@ const renderFormattedText = (text: string, isUser: boolean) => {
               </Text>
             );
           }
-          
+
           return null;
         })}
       </View>
@@ -170,13 +170,13 @@ const renderInlineFormatting = (
   let lastIndex = 0;
   const regex = /\*\*(.+?)\*\*/g;
   let match;
-  
+
   while ((match = regex.exec(text)) !== null) {
     // Add text before the match
     if (match.index > lastIndex) {
       parts.push(text.substring(lastIndex, match.index));
     }
-    
+
     // Add bold text
     parts.push(
       <Text
@@ -187,17 +187,17 @@ const renderInlineFormatting = (
         }}
       >
         {match[1]}
-      </Text>
+      </Text>,
     );
-    
+
     lastIndex = regex.lastIndex;
   }
-  
+
   // Add remaining text
   if (lastIndex < text.length) {
     parts.push(text.substring(lastIndex));
   }
-  
+
   return parts.length > 0 ? <>{parts}</> : text;
 };
 
@@ -344,7 +344,9 @@ export default function AssistantScreen() {
     try {
       // Build conversation history from previous messages (excluding welcome message)
       const conversationHistory = messages
-        .filter((msg) => msg.id !== messages[0]?.id || !msg.text.includes('Hello!'))
+        .filter(
+          (msg) => msg.id !== messages[0]?.id || !msg.text.includes('Hello!'),
+        )
         .map((msg) => ({
           role: msg.isUser ? 'user' : 'assistant',
           content: msg.text,
@@ -370,7 +372,7 @@ export default function AssistantScreen() {
       scrollToBottom(flatListRef);
     } catch (error: any) {
       console.error('Assistant API error:', error);
-      
+
       // Fallback to mock response on error
       const assistantResponse: Message = {
         id: `${Date.now() + 1}`,
@@ -378,9 +380,9 @@ export default function AssistantScreen() {
         isUser: false,
         timestamp: new Date(),
       };
-      
+
       setMessages((prev) => [...prev, assistantResponse]);
-      
+
       // Show error alert only for non-auth errors
       if (error?.status !== 401 && error?.status !== 403) {
         Alert.alert(
@@ -389,7 +391,7 @@ export default function AssistantScreen() {
           [{ text: 'OK' }],
         );
       }
-      
+
       scrollToBottom(flatListRef);
     } finally {
       setIsLoading(false);
@@ -424,7 +426,9 @@ export default function AssistantScreen() {
           <Text
             style={[
               styles.messageText,
-              item.isUser ? styles.userMessageText : styles.assistantMessageText,
+              item.isUser
+                ? styles.userMessageText
+                : styles.assistantMessageText,
             ]}
           >
             {item.text}
@@ -583,16 +587,12 @@ export default function AssistantScreen() {
                     color={Colors.accentPrimary}
                   />
                 </View>
-                <Text style={styles.emptyTitle}>
-                  Your Cocktail Assistant
-                </Text>
+                <Text style={styles.emptyTitle}>Your Cocktail Assistant</Text>
                 <Text style={styles.emptyText}>
                   Ask me anything about cocktails, recipes, or ingredients!
                 </Text>
                 <View style={styles.sampleQuestionsContainer}>
-                  <Text style={styles.sampleQuestionsTitle}>
-                    Try asking:
-                  </Text>
+                  <Text style={styles.sampleQuestionsTitle}>Try asking:</Text>
                   <View style={styles.sampleQuestionsGrid}>
                     {SAMPLE_QUESTIONS.map((question, index) => (
                       <TouchableOpacity
@@ -618,7 +618,10 @@ export default function AssistantScreen() {
 
         {/* Input area */}
         <View
-          style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom + 100, 100) }]}
+          style={[
+            styles.inputContainer,
+            { paddingBottom: Math.max(insets.bottom + 100, 100) },
+          ]}
         >
           {/* Show sample questions if only welcome message exists */}
           {messages.length === 1 && messages[0]?.text.includes('Hello!') && (

@@ -1,5 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, View, Text, StyleSheet } from 'react-native';
+import {
+  Alert,
+  View,
+  Text,
+  StyleSheet,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
+  ScrollView,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import FormButton from '@/components/ui/FormButton';
 import AuthInput from '@/components/ui/AuthInput';
@@ -12,6 +22,14 @@ const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE ??
   'http://127.0.0.1:8000/api/v1';
 
+// Helper to safely extract string from search params (handles array case)
+const getParamString = (
+  param: string | string[] | undefined,
+): string | undefined => {
+  if (Array.isArray(param)) return param[0];
+  return param;
+};
+
 // Screen for changing password - supports two flows:
 // 1. Direct: User knows current password (no query params)
 // 2. OTP-verified: User came from email verification (verified=true, email, code params)
@@ -19,16 +37,26 @@ export default function ChangePasswordScreen() {
   const { user, accessToken } = useAuth();
 
   // Check if coming from OTP verification flow
-  const { verified, email, code } = useLocalSearchParams<{
+  const params = useLocalSearchParams<{
     verified?: string;
     email?: string;
     code?: string;
   }>();
 
-  const isOtpFlow = verified === 'true' && !!email && !!code;
+  // Safely extract params (expo-router can return arrays)
+  const verifiedParam = getParamString(params.verified);
+  const emailParam = getParamString(params.email);
+  const codeParam = getParamString(params.code);
+
+  // Determine flow type - memoized to ensure consistency
+  const isOtpFlow = useMemo(
+    () => verifiedParam === 'true' && !!emailParam && !!codeParam,
+    [verifiedParam, emailParam, codeParam],
+  );
+
   const normalizedEmail = useMemo(
-    () => (email || user?.email || '').toLowerCase().trim(),
-    [email, user?.email],
+    () => (emailParam || user?.email || '').toLowerCase().trim(),
+    [emailParam, user?.email],
   );
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -44,6 +72,7 @@ export default function ChangePasswordScreen() {
   );
 
   // For direct flow, also require current password
+  // For OTP flow, current password is not needed
   const currentPasswordValid = useMemo(
     () => isOtpFlow || currentPassword.length >= 1,
     [isOtpFlow, currentPassword],
@@ -88,7 +117,7 @@ export default function ChangePasswordScreen() {
       },
       body: JSON.stringify({
         email: normalizedEmail,
-        code: code,
+        code: codeParam,
         new_password: password,
       }),
     });
@@ -108,7 +137,11 @@ export default function ChangePasswordScreen() {
     try {
       setSubmitting(true);
 
-      if (isOtpFlow) {
+      // Double-check flow type at submission time using the extracted params
+      const useOtpFlow =
+        verifiedParam === 'true' && !!emailParam && !!codeParam;
+
+      if (useOtpFlow) {
         await updatePasswordWithOtp();
       } else {
         await updatePasswordDirect();
@@ -119,18 +152,38 @@ export default function ChangePasswordScreen() {
       ]);
     } catch (e: any) {
       const message = e?.message || 'Please try again.';
+      const useOtpFlow =
+        verifiedParam === 'true' && !!emailParam && !!codeParam;
 
-      // Provide more specific error messages
-      if (message.includes('incorrect') || message.includes('Invalid')) {
-        Alert.alert('Update failed', 'Your current password is incorrect.');
-      } else if (message.includes('expired')) {
-        Alert.alert(
-          'Code expired',
-          'Your verification code has expired. Please request a new one.',
-          [{ text: 'OK', onPress: () => router.back() }],
-        );
+      // Provide flow-specific error messages
+      if (useOtpFlow) {
+        // OTP flow errors
+        if (message.includes('expired')) {
+          Alert.alert(
+            'Code expired',
+            'Your verification code has expired. Please request a new one.',
+            [{ text: 'OK', onPress: () => router.back() }],
+          );
+        } else if (
+          message.includes('Invalid') ||
+          message.includes('invalid') ||
+          message.includes('incorrect')
+        ) {
+          Alert.alert(
+            'Invalid code',
+            'The verification code is invalid. Please try again or request a new code.',
+            [{ text: 'OK', onPress: () => router.back() }],
+          );
+        } else {
+          Alert.alert('Update failed', message);
+        }
       } else {
-        Alert.alert('Update failed', message);
+        // Direct flow errors
+        if (message.includes('incorrect') || message.includes('Invalid')) {
+          Alert.alert('Update failed', 'Your current password is incorrect.');
+        } else {
+          Alert.alert('Update failed', message);
+        }
       }
     } finally {
       setSubmitting(false);
@@ -138,70 +191,94 @@ export default function ChangePasswordScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>
-        {isOtpFlow ? 'Set New Password' : 'Change Password'}
-      </Text>
-      <Text style={styles.subtitle}>
-        {isOtpFlow
-          ? `Create a new password for ${normalizedEmail}`
-          : 'Enter your current password and choose a new one'}
-      </Text>
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoid}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <Text style={styles.title}>
+              {isOtpFlow ? 'Set New Password' : 'Change Password'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {isOtpFlow
+                ? `Create a new password for ${normalizedEmail}`
+                : 'Enter your current password and choose a new one'}
+            </Text>
 
-      {/* Current password - only shown for direct flow */}
-      {!isOtpFlow && (
-        <AuthInput
-          placeholder="Current Password"
-          value={currentPassword}
-          onChangeText={setCurrentPassword}
-          type="password"
-          returnKeyType="next"
-          autoComplete="current-password"
-        />
-      )}
+            {/* Current password - only shown for direct flow */}
+            {!isOtpFlow && (
+              <AuthInput
+                placeholder="Current Password"
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                type="password"
+                returnKeyType="next"
+                autoComplete="current-password"
+              />
+            )}
 
-      <AuthInput
-        placeholder="New Password"
-        value={password}
-        onChangeText={setPassword}
-        type="password"
-        returnKeyType="next"
-        autoComplete="new-password"
-      />
+            <AuthInput
+              placeholder="New Password"
+              value={password}
+              onChangeText={setPassword}
+              type="password"
+              returnKeyType="next"
+              autoComplete="new-password"
+            />
 
-      <AuthInput
-        placeholder="Confirm New Password"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        type="password"
-        returnKeyType="done"
-        onSubmitEditing={() => {
-          if (allValid) void onSubmit();
-        }}
-      />
+            <AuthInput
+              placeholder="Confirm New Password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              type="password"
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                if (allValid) void onSubmit();
+              }}
+            />
 
-      <PasswordRules
-        password={password}
-        confirmPassword={confirmPassword}
-        email={normalizedEmail}
-      />
+            <PasswordRules
+              password={password}
+              confirmPassword={confirmPassword}
+              email={normalizedEmail}
+            />
 
-      <FormButton
-        title={submitting ? 'Updating...' : 'Update Password'}
-        onPress={() => {
-          void onSubmit();
-        }}
-        disabled={!allValid || submitting}
-      />
+            <FormButton
+              title={submitting ? 'Updating...' : 'Update Password'}
+              onPress={() => {
+                void onSubmit();
+              }}
+              disabled={!allValid || submitting}
+            />
 
-      <Text style={styles.backText} onPress={() => router.back()}>
-        {isOtpFlow ? 'Cancel' : 'Back to Settings'}
-      </Text>
-    </View>
+            <Text style={styles.backText} onPress={() => router.back()}>
+              {isOtpFlow ? 'Cancel' : 'Back to Settings'}
+            </Text>
+          </View>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 60,
+  },
   container: {
     flex: 1,
     justifyContent: 'center',

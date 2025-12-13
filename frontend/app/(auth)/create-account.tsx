@@ -7,6 +7,11 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import FormButton from '@/components/ui/FormButton';
 import AuthInput from '@/components/ui/AuthInput';
@@ -145,70 +150,94 @@ export default function CreateAccountScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Animated.View style={{ transform: [{ translateX: shakeX }] }}>
-        <Text style={styles.title}>Create Account</Text>
-      </Animated.View>
-      <Text style={styles.subtitle}>Please enter your details</Text>
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoid}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <Animated.View style={{ transform: [{ translateX: shakeX }] }}>
+              <Text style={styles.title}>Create Account</Text>
+            </Animated.View>
+            <Text style={styles.subtitle}>Please enter your details</Text>
 
-      <AuthInput
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        type="email"
-        returnKeyType="next"
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
+            <AuthInput
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              type="email"
+              returnKeyType="next"
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
 
-      <AuthInput
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        type="password"
-        returnKeyType="next"
-      />
+            <AuthInput
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              type="password"
+              returnKeyType="next"
+            />
 
-      <AuthInput
-        placeholder="Confirm Password"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        type="password"
-        returnKeyType="go"
-        onSubmitEditing={() => {
-          void handleCreate();
-        }}
-      />
+            <AuthInput
+              placeholder="Confirm Password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              type="password"
+              returnKeyType="go"
+              onSubmitEditing={() => {
+                void handleCreate();
+              }}
+            />
 
-      <PasswordRules
-        password={password}
-        confirmPassword={confirmPassword}
-        email={emailTrimmed}
-      />
+            <PasswordRules
+              password={password}
+              confirmPassword={confirmPassword}
+              email={emailTrimmed}
+            />
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {success ? <Text style={styles.success}>{success}</Text> : null}
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {success ? <Text style={styles.success}>{success}</Text> : null}
 
-      <FormButton
-        title={busy ? 'Creating…' : 'Create'}
-        onPress={() => {
-          void handleCreate();
-        }}
-        disabled={!allValid || busy}
-      />
-      {busy ? <ActivityIndicator style={{ marginTop: 12 }} /> : null}
+            <FormButton
+              title={busy ? 'Creating…' : 'Create'}
+              onPress={() => {
+                void handleCreate();
+              }}
+              disabled={!allValid || busy}
+            />
+            {busy ? <ActivityIndicator style={{ marginTop: 12 }} /> : null}
 
-      <Text style={styles.newUserText}>
-        Already have an account?{' '}
-        <Link href="/(auth)/login" asChild>
-          <Text style={styles.link}>Sign in here</Text>
-        </Link>
-      </Text>
-    </View>
+            <Text style={styles.newUserText}>
+              Already have an account?{' '}
+              <Link href="/(auth)/login" asChild>
+                <Text style={styles.link}>Sign in here</Text>
+              </Link>
+            </Text>
+          </View>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 60,
+  },
   container: {
     flex: 1,
     justifyContent: 'center',
