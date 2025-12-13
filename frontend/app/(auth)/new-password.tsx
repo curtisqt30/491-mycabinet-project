@@ -139,7 +139,10 @@ export default function NewPasswordScreen() {
               }}
             />
 
-            <PasswordRules password={password} confirmPassword={confirmPassword} />
+            <PasswordRules
+              password={password}
+              confirmPassword={confirmPassword}
+            />
 
             <FormButton
               title={submitting ? 'Updating…' : 'Reset Password'}

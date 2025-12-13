@@ -86,7 +86,9 @@ export default function VerifyResetCodeScreen() {
                   }}
                   value={codes[i]}
                   onChangeText={(v) => setDigit(i, v)}
-                  onKeyPress={({ nativeEvent }) => onKeyPress(i, nativeEvent.key)}
+                  onKeyPress={({ nativeEvent }) =>
+                    onKeyPress(i, nativeEvent.key)
+                  }
                   keyboardType="number-pad"
                   textContentType="oneTimeCode"
                   maxLength={1}

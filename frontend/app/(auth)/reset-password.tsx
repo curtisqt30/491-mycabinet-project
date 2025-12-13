@@ -71,8 +71,8 @@ export default function ResetPasswordScreen() {
           <View style={styles.container}>
             <Text style={styles.title}>Reset your password</Text>
             <Text style={styles.subtitle}>
-              Enter the email associated with your account and we will send you a
-              reset code.
+              Enter the email associated with your account and we will send you
+              a reset code.
             </Text>
 
             <AuthInput
