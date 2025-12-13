@@ -1099,7 +1099,9 @@ const styles = StyleSheet.create({
     // Override Toast's absolute positioning to make it relative to wrapper
     position: 'relative',
     bottom: 0,
-    // left and right are handled by toastWrapper, so we don't need to override them
+    left: 0,
+    right: 0,
+    // Remove the base left/right: 20 to prevent offsetting with relative positioning
   },
   menuWrap: { position: 'absolute', left: 14, zIndex: 10 },
   title: {
