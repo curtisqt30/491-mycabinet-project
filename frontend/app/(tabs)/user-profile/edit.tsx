@@ -105,25 +105,22 @@ export default function ProfileEditScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       {/* Back button */}
-      <View style={[styles.backWrap, { top: insets.top + 10 }]}>
+      <View style={[styles.backWrap, { top: Math.max(14, insets.top) }]}>
         <BackButton />
+      </View>
+
+      {/* Fixed Header - matches favorites.tsx pattern */}
+      <View style={[styles.headerWrap, { paddingTop: insets.top + 56 }]}>
+        <Text style={styles.title}>Edit Profile</Text>
+        <Text style={styles.subtitle}>Update your public info</Text>
       </View>
 
       <ScrollView
         style={styles.container}
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + 56 },
-        ]}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Edit Profile</Text>
-          <Text style={styles.subtitle}>Update your public info</Text>
-        </View>
-
         {/* Avatar Selection */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Profile Picture</Text>
@@ -219,24 +216,26 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 120,
   },
 
-  // Header
-  header: {
+  // Header - fixed at top, matches favorites.tsx
+  headerWrap: {
+    backgroundColor: Colors.background,
     alignItems: 'center',
-    marginBottom: 32,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '800',
     color: Colors.textPrimary,
     textAlign: 'center',
+    marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
     color: Colors.textSecondary,
-    marginTop: 4,
-    textAlign: 'center',
+    marginBottom: 8,
   },
 
   // Sections
