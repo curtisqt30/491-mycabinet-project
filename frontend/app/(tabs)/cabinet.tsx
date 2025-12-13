@@ -117,6 +117,17 @@ export default function MyIngredientsScreen() {
       try {
         setLoading(true);
         
+        // Load existing AsyncStorage items first to preserve shopping list
+        let existingIngredients: Ingredient[] = [];
+        try {
+          const raw = await AsyncStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            existingIngredients = JSON.parse(raw) as Ingredient[];
+          }
+        } catch (e) {
+          // Ignore AsyncStorage read errors
+        }
+        
         // Try to load from database first (if authenticated)
         if (isAuthenticated) {
           try {
@@ -126,7 +137,7 @@ export default function MyIngredientsScreen() {
             
             if (pantryItems && pantryItems.length > 0) {
               // Convert backend format to local format
-              const loadedIngredients: Ingredient[] = pantryItems.map((item) => {
+              const dbIngredients: Ingredient[] = pantryItems.map((item) => {
                 const { displayName, canonicalName } = normalizeIngredient(
                   item.ingredient_name,
                 );
@@ -146,12 +157,27 @@ export default function MyIngredientsScreen() {
                 };
               });
               
-              setIngredients(loadedIngredients);
+              // Merge database items with existing AsyncStorage items
+              // Preserve shopping list items (wanted: true) from AsyncStorage
+              const dbIngredientIds = new Set(dbIngredients.map(i => i.id));
+              const shoppingListItems = existingIngredients.filter(
+                i => i.wanted && !dbIngredientIds.has(i.id)
+              );
               
-              // Save to AsyncStorage as cache
+              // Combine: database items + shopping list items from cache
+              const mergedIngredients = [...dbIngredients, ...shoppingListItems];
+              
+              setIngredients(
+                mergedIngredients.map((i) => ({
+                  ...i,
+                  qty: typeof i.qty === 'number' ? i.qty : 1,
+                })),
+              );
+              
+              // Save merged items to AsyncStorage as cache
               await AsyncStorage.setItem(
                 STORAGE_KEY,
-                JSON.stringify(loadedIngredients),
+                JSON.stringify(mergedIngredients),
               );
               
               setLoading(false);
@@ -163,12 +189,10 @@ export default function MyIngredientsScreen() {
           }
         }
         
-        // Fallback to AsyncStorage
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw) as Ingredient[];
+        // Fallback to AsyncStorage (when not authenticated or database load failed)
+        if (existingIngredients.length > 0) {
           setIngredients(
-            parsed.map((i) => ({
+            existingIngredients.map((i) => ({
               ...i,
               qty: typeof i.qty === 'number' ? i.qty : 1,
             })),
