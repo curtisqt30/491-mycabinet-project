@@ -803,7 +803,17 @@ export default function MyIngredientsScreen() {
         </TouchableOpacity>
 
         {/* Toast */}
-        {toast && <Toast text={toast.text} onUndo={toast.onUndo} />}
+        {toast && (
+          <View style={{
+            position: 'absolute',
+            bottom: 160, 
+            left: 20,
+            right: 20,
+            zIndex: 100,
+          }}>
+            <Toast text={toast.text} onUndo={toast.onUndo} />
+          </View>
+        )}
 
         {/* Action sheet */}
         <ActionSheet
@@ -1072,11 +1082,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    overflow: 'visible',
+    overflow: 'hidden',
   },
   body: { flex: 1 },
-  list: { flex: 1, overflow: 'visible' },
+  list: { 
+    flex: 1, 
+    overflow: 'hidden',
+  },
   headerWrap: { backgroundColor: Colors.background, alignItems: 'center' },
+  toastWrapper: {
+    position: 'absolute',
+    top: 120,
+    left: 20,
+    right: 20,
+    zIndex: 100,
+  },
   menuWrap: { position: 'absolute', left: 14, zIndex: 10 },
   title: {
     fontSize: 28,
