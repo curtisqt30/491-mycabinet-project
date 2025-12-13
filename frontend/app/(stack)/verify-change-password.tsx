@@ -1,5 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  Alert,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
+  ScrollView,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import FormButton from '@/components/ui/FormButton';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
@@ -50,42 +61,13 @@ export default function VerifyChangePasswordScreen() {
 
   const handleVerify = async () => {
     if (!canSubmit || submitting) return;
-    try {
-      setSubmitting(true);
 
-      // Verify the code for password change
-      const res = await fetch(`${API_BASE}/auth/otp/verify`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({
-          email: normalizedEmail,
-          intent: 'verify',
-          code: codeString,
-        }),
-      });
-
-      if (!res.ok) {
-        const j = await res.json().catch(() => null);
-        const detail =
-          j?.detail && typeof j.detail === 'string'
-            ? j.detail
-            : 'Invalid or expired code';
-        Alert.alert("Couldn't verify", detail);
-        return;
-      }
-
-      // Navigate to change password screen with verified flag and code
-      router.replace(
-        `/(stack)/change-password?verified=true&email=${encodeURIComponent(normalizedEmail)}&code=${encodeURIComponent(codeString)}`,
-      );
-    } catch (e: any) {
-      Alert.alert('Network error', e?.message ?? 'Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
+    // Don't verify OTP here - pass it to the change-password screen
+    // which will verify it when actually changing the password.
+    // This prevents double-consumption of the OTP.
+    router.replace(
+      `/(stack)/change-password?verified=true&email=${encodeURIComponent(normalizedEmail)}&code=${encodeURIComponent(codeString)}`,
+    );
   };
 
   const handleResend = async () => {
@@ -103,59 +85,83 @@ export default function VerifyChangePasswordScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Verify Your Identity</Text>
-      <Text style={styles.subtitle}>
-        We sent a 6-digit code to {normalizedEmail || 'your email'} to confirm
-        this password change.
-      </Text>
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoid}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <Text style={styles.title}>Verify Your Identity</Text>
+            <Text style={styles.subtitle}>
+              We sent a 6-digit code to {normalizedEmail || 'your email'} to
+              confirm this password change.
+            </Text>
 
-      <View style={styles.row}>
-        {Array.from({ length: CODE_LEN }).map((_, i) => (
-          <TextInput
-            key={i}
-            ref={(el) => {
-              inputs.current[i] = el;
-            }}
-            value={codes[i]}
-            onChangeText={(v) => setDigit(i, v)}
-            onKeyPress={({ nativeEvent }) => onKeyPress(i, nativeEvent.key)}
-            keyboardType="number-pad"
-            textContentType="oneTimeCode"
-            maxLength={1}
-            style={styles.box}
-            returnKeyType={i === CODE_LEN - 1 ? 'done' : 'next'}
-          />
-        ))}
-      </View>
+            <View style={styles.row}>
+              {Array.from({ length: CODE_LEN }).map((_, i) => (
+                <TextInput
+                  key={i}
+                  ref={(el) => {
+                    inputs.current[i] = el;
+                  }}
+                  value={codes[i]}
+                  onChangeText={(v) => setDigit(i, v)}
+                  onKeyPress={({ nativeEvent }) => onKeyPress(i, nativeEvent.key)}
+                  keyboardType="number-pad"
+                  textContentType="oneTimeCode"
+                  maxLength={1}
+                  style={styles.box}
+                  returnKeyType={i === CODE_LEN - 1 ? 'done' : 'next'}
+                />
+              ))}
+            </View>
 
-      <FormButton
-        title={submitting ? 'Verifying...' : 'Continue'}
-        onPress={() => {
-          void handleVerify();
-        }}
-        disabled={!canSubmit || submitting}
-      />
+            <FormButton
+              title={submitting ? 'Verifying...' : 'Continue'}
+              onPress={() => {
+                void handleVerify();
+              }}
+              disabled={!canSubmit || submitting}
+            />
 
-      <Text
-        style={styles.resend}
-        onPress={() => {
-          void handleResend();
-        }}
-      >
-        Resend code
-      </Text>
+            <Text
+              style={styles.resend}
+              onPress={() => {
+                void handleResend();
+              }}
+            >
+              Resend code
+            </Text>
 
-      <Text style={styles.cancel} onPress={() => router.back()}>
-        Cancel
-      </Text>
-    </View>
+            <Text style={styles.cancel} onPress={() => router.back()}>
+              Cancel
+            </Text>
+          </View>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
 const BOX_SIZE = 50;
 
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 140,
+  },
   container: {
     flex: 1,
     justifyContent: 'center',

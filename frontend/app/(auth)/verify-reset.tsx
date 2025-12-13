@@ -1,10 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  Alert,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
+  ScrollView,
+} from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import FormButton from '@/components/ui/FormButton';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import BackButton from '@/components/ui/BackButton';
 
 const CODE_LEN = 6;
 
@@ -18,7 +27,6 @@ export default function VerifyResetCodeScreen() {
   const [codes, setCodes] = useState<string[]>(Array(CODE_LEN).fill(''));
   const inputs = useRef<(TextInput | null)[]>([]);
   const codeString = useMemo(() => codes.join(''), [codes]);
-  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     inputs.current[0]?.focus();
@@ -51,45 +59,71 @@ export default function VerifyResetCodeScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.backWrap, { top: Math.max(14, insets.top) }]}>
-        <BackButton />
-      </View>
-      <Text style={styles.title}>Enter reset code</Text>
-      <Text style={styles.subtitle}>
-        We sent a 6-digit code to {normalizedEmail || 'your email'}.
-      </Text>
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoid}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <Text style={styles.title}>Enter reset code</Text>
+            <Text style={styles.subtitle}>
+              We sent a 6-digit code to {normalizedEmail || 'your email'}.
+            </Text>
 
-      <View style={styles.row}>
-        {Array.from({ length: CODE_LEN }).map((_, i) => (
-          <TextInput
-            key={i}
-            ref={(el) => {
-              inputs.current[i] = el;
-            }}
-            value={codes[i]}
-            onChangeText={(v) => setDigit(i, v)}
-            onKeyPress={({ nativeEvent }) => onKeyPress(i, nativeEvent.key)}
-            keyboardType="number-pad"
-            textContentType="oneTimeCode"
-            maxLength={1}
-            style={styles.box}
-            returnKeyType={i === CODE_LEN - 1 ? 'done' : 'next'}
-          />
-        ))}
-      </View>
+            <View style={styles.row}>
+              {Array.from({ length: CODE_LEN }).map((_, i) => (
+                <TextInput
+                  key={i}
+                  ref={(el) => {
+                    inputs.current[i] = el;
+                  }}
+                  value={codes[i]}
+                  onChangeText={(v) => setDigit(i, v)}
+                  onKeyPress={({ nativeEvent }) => onKeyPress(i, nativeEvent.key)}
+                  keyboardType="number-pad"
+                  textContentType="oneTimeCode"
+                  maxLength={1}
+                  style={styles.box}
+                  returnKeyType={i === CODE_LEN - 1 ? 'done' : 'next'}
+                />
+              ))}
+            </View>
 
-      <FormButton
-        title="Continue"
-        onPress={continueNext}
-        disabled={codeString.length !== CODE_LEN}
-      />
-    </View>
+            <FormButton
+              title="Continue"
+              onPress={continueNext}
+              disabled={codeString.length !== CODE_LEN}
+            />
+
+            <Text style={styles.cancel} onPress={() => router.back()}>
+              Cancel
+            </Text>
+          </View>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
-const BOX = 50;
+const BOX_SIZE = 50;
+
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 60,
+  },
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -102,17 +136,23 @@ const styles = StyleSheet.create({
     fontSize: 24,
     marginBottom: 8,
     color: Colors.textPrimary,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
     color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 16,
+    paddingHorizontal: 20,
   },
-  row: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  row: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 20,
+  },
   box: {
-    width: BOX,
-    height: BOX,
+    width: BOX_SIZE,
+    height: BOX_SIZE,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
@@ -121,9 +161,10 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
-  backWrap: {
-    position: 'absolute',
-    left: 14,
-    zIndex: 10,
+  cancel: {
+    marginTop: 12,
+    color: Colors.textSecondary,
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
 });
