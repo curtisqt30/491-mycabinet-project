@@ -4,12 +4,14 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 export default function Toast({
   text,
   onUndo,
+  containerStyle,
 }: {
   text: string;
   onUndo: () => void;
+  containerStyle?: any;
 }) {
   return (
-    <View style={s.container}>
+    <View style={[s.container, containerStyle]}>
       <Text style={s.text} numberOfLines={1}>
         {text}
       </Text>

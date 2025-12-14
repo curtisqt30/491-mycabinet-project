@@ -154,7 +154,7 @@ export default function MyIngredientsScreen() {
               // Save to AsyncStorage as cache
               await AsyncStorage.setItem(
                 STORAGE_KEY,
-                JSON.stringify(loadedIngredients),
+                JSON.stringify(mergedIngredients),
               );
 
               setLoading(false);
@@ -171,7 +171,7 @@ export default function MyIngredientsScreen() {
         if (raw) {
           const parsed = JSON.parse(raw) as Ingredient[];
           setIngredients(
-            parsed.map((i) => ({
+            existingIngredients.map((i) => ({
               ...i,
               qty: typeof i.qty === 'number' ? i.qty : 1,
             })),
@@ -1111,10 +1111,18 @@ const styles = StyleSheet.create({
   headerWrap: { backgroundColor: Colors.background, alignItems: 'center' },
   toastWrapper: {
     position: 'absolute',
-    top: 120,
+    bottom: 170,
     left: 20,
     right: 20,
     zIndex: 100,
+  },
+  toastInner: {
+    // Override Toast's absolute positioning to make it relative to wrapper
+    position: 'relative',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    // Remove the base left/right: 20 to prevent offsetting with relative positioning
   },
   menuWrap: { position: 'absolute', left: 14, zIndex: 10 },
   title: {
