@@ -1,6 +1,16 @@
 import React, { useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Alert,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
+  ScrollView,
+} from 'react-native';
 import FormButton from '@/components/ui/FormButton';
 import AuthInput from '@/components/ui/AuthInput';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
@@ -11,16 +21,31 @@ const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE ??
   'http://127.0.0.1:8000/api/v1';
 
+// Helper to safely extract string from search params (handles array case)
+const getParamString = (
+  param: string | string[] | undefined,
+): string | undefined => {
+  if (Array.isArray(param)) return param[0];
+  return param;
+};
+
 export default function NewPasswordScreen() {
-  const { email, code } = useLocalSearchParams<{
+  const params = useLocalSearchParams<{
     email?: string;
     code?: string;
   }>();
+
+  const emailParam = getParamString(params.email);
+  const codeParam = getParamString(params.code);
+
   const normalizedEmail = useMemo(
-    () => (email || '').toLowerCase().trim(),
-    [email],
+    () => (emailParam || '').toLowerCase().trim(),
+    [emailParam],
   );
-  const normalizedCode = useMemo(() => (code || '').replace(/\D/g, ''), [code]);
+  const normalizedCode = useMemo(
+    () => (codeParam || '').replace(/\D/g, ''),
+    [codeParam],
+  );
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -59,7 +84,7 @@ export default function NewPasswordScreen() {
       if (!res.ok) {
         const txt = await res.text().catch(() => '');
         Alert.alert(
-          'Couldn’t reset password',
+          'Could not reset password',
           txt || 'Invalid or expired code.',
         );
         return;
@@ -77,42 +102,72 @@ export default function NewPasswordScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Create New Password</Text>
-      <Text style={styles.subtitle}>
-        Set a new password for {normalizedEmail || 'your account'}.
-      </Text>
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoid}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <Text style={styles.title}>Create New Password</Text>
+            <Text style={styles.subtitle}>
+              Set a new password for {normalizedEmail || 'your account'}.
+            </Text>
 
-      <AuthInput
-        placeholder="New password"
-        value={password}
-        onChangeText={setPassword}
-        type="password"
-        returnKeyType="next"
-      />
+            <AuthInput
+              placeholder="New password"
+              value={password}
+              onChangeText={setPassword}
+              type="password"
+              returnKeyType="next"
+            />
 
-      <AuthInput
-        placeholder="Confirm new password"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        type="password"
-        returnKeyType="go"
-      />
+            <AuthInput
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              type="password"
+              returnKeyType="go"
+              onSubmitEditing={() => {
+                if (allValid) void handleSubmit();
+              }}
+            />
 
-      <PasswordRules password={password} confirmPassword={confirmPassword} />
+            <PasswordRules
+              password={password}
+              confirmPassword={confirmPassword}
+            />
 
-      <FormButton
-        title={submitting ? 'Updating…' : 'Reset Password'}
-        onPress={() => {
-          void handleSubmit();
-        }}
-        disabled={!allValid || submitting}
-      />
-    </View>
+            <FormButton
+              title={submitting ? 'Updating…' : 'Reset Password'}
+              onPress={() => {
+                void handleSubmit();
+              }}
+              disabled={!allValid || submitting}
+            />
+          </View>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 60,
+  },
   container: {
     flex: 1,
     justifyContent: 'center',

@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Alert,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
+  ScrollView,
+} from 'react-native';
 import { Link, router } from 'expo-router';
 import FormButton from '@/components/ui/FormButton';
 import AuthInput from '@/components/ui/AuthInput';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import BackButton from '@/components/ui/BackButton';
 
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
@@ -39,7 +48,7 @@ export default function ResetPasswordScreen() {
       // Go to new-password screen where user will enter code + new password
       const q = encodeURIComponent(trimmed);
       router.push(`/(auth)/verify-reset?email=${q}`);
-    } catch {
+    } catch (_e) {
       Alert.alert('Network error', 'Check your connection and try again.');
     } finally {
       setSubmitting(false);
@@ -47,44 +56,69 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.backWrap, { top: Math.max(14, insets.top) }]}>
-        <BackButton />
-      </View>
-      <Text style={styles.title}>Reset your password</Text>
-      <Text style={styles.subtitle}>
-        Enter the email associated with your account and we’ll send you a reset
-        code.
-      </Text>
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoid}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <Text style={styles.title}>Reset your password</Text>
+            <Text style={styles.subtitle}>
+              Enter the email associated with your account and we will send you
+              a reset code.
+            </Text>
 
-      <AuthInput
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        type="email"
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
+            <AuthInput
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              type="email"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              returnKeyType="go"
+              onSubmitEditing={() => {
+                if (email.trim()) void handleReset();
+              }}
+            />
 
-      <FormButton
-        title={submitting ? 'Sending...' : 'Send code'}
-        onPress={() => {
-          void handleReset();
-        }}
-        disabled={submitting || !email.trim()}
-      />
+            <FormButton
+              title={submitting ? 'Sending...' : 'Send code'}
+              onPress={() => {
+                void handleReset();
+              }}
+              disabled={submitting || !email.trim()}
+            />
 
-      <Text style={styles.backText}>
-        Remembered it?{' '}
-        <Link href="/(auth)/login" asChild>
-          <Text style={styles.link}>Back to login</Text>
-        </Link>
-      </Text>
-    </View>
+            <Text style={styles.backText}>
+              Remembered it?{' '}
+              <Link href="/(auth)/login" asChild>
+                <Text style={styles.link}>Back to login</Text>
+              </Link>
+            </Text>
+          </View>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 60,
+  },
   container: {
     flex: 1,
     justifyContent: 'center',

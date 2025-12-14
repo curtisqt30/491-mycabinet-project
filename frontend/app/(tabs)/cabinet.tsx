@@ -97,7 +97,7 @@ export default function MyIngredientsScreen() {
   const [_syncing, setSyncing] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
+
   // Track backend ingredient IDs for syncing
   const backendIngredientMap = useRef<Map<string, number>>(new Map()); // local_id -> backend_id
 
@@ -116,70 +116,47 @@ export default function MyIngredientsScreen() {
     void (async () => {
       try {
         setLoading(true);
-        
-        // Load existing AsyncStorage items first to preserve shopping list
-        let existingIngredients: Ingredient[] = [];
-        try {
-          const raw = await AsyncStorage.getItem(STORAGE_KEY);
-          if (raw) {
-            existingIngredients = JSON.parse(raw) as Ingredient[];
-          }
-        } catch (e) {
-          // Ignore AsyncStorage read errors
-        }
-        
+
         // Try to load from database first (if authenticated)
         if (isAuthenticated) {
           try {
-            const pantryItems = await get<
-              { id: number; ingredient_name: string; quantity: number }[]
-            >('/users/me/pantry');
-            
+            const pantryItems =
+              await get<
+                { id: number; ingredient_name: string; quantity: number }[]
+              >('/users/me/pantry');
+
             if (pantryItems && pantryItems.length > 0) {
               // Convert backend format to local format
-              const dbIngredients: Ingredient[] = pantryItems.map((item) => {
-                const { displayName, canonicalName } = normalizeIngredient(
-                  item.ingredient_name,
-                );
-                const localId = `db_${item.id}`;
-                backendIngredientMap.current.set(localId, item.id);
-                
-                return {
-                  id: localId,
-                  name: displayName,
-                  category: 'Other', // Default category
-                  owned: true, // All items from pantry are owned
-                  qty: item.quantity,
-                  imageUrl: ingredientImageUrl(
-                    canonicalName || displayName,
-                    'Small',
-                  ),
-                };
-              });
-              
-              // Merge database items with existing AsyncStorage items
-              // Preserve shopping list items (wanted: true) from AsyncStorage
-              const dbIngredientIds = new Set(dbIngredients.map(i => i.id));
-              const shoppingListItems = existingIngredients.filter(
-                i => i.wanted && !dbIngredientIds.has(i.id)
+              const loadedIngredients: Ingredient[] = pantryItems.map(
+                (item) => {
+                  const { displayName, canonicalName } = normalizeIngredient(
+                    item.ingredient_name,
+                  );
+                  const localId = `db_${item.id}`;
+                  backendIngredientMap.current.set(localId, item.id);
+
+                  return {
+                    id: localId,
+                    name: displayName,
+                    category: 'Other', // Default category
+                    owned: true, // All items from pantry are owned
+                    qty: item.quantity,
+                    imageUrl: ingredientImageUrl(
+                      canonicalName || displayName,
+                      'Small',
+                    ),
+                  };
+                },
               );
-              
-              // Combine: database items + shopping list items from cache
-              const mergedIngredients = [...dbIngredients, ...shoppingListItems];
-              
-              setIngredients(
-                mergedIngredients.map((i) => ({
-                  ...i,
-                  qty: typeof i.qty === 'number' ? i.qty : 1,
-                })),
-              );
-              
-              // Save merged items to AsyncStorage as cache
+
+              setIngredients(loadedIngredients);
+
+              // Save to AsyncStorage as cache
               await AsyncStorage.setItem(
                 STORAGE_KEY,
                 JSON.stringify(mergedIngredients),
               );
-              
+
               setLoading(false);
               return;
             }
@@ -188,9 +165,11 @@ export default function MyIngredientsScreen() {
             // Fall through to AsyncStorage
           }
         }
-        
-        // Fallback to AsyncStorage (when not authenticated or database load failed)
-        if (existingIngredients.length > 0) {
+
+        // Fallback to AsyncStorage
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Ingredient[];
           setIngredients(
             existingIngredients.map((i) => ({
               ...i,
@@ -233,7 +212,7 @@ export default function MyIngredientsScreen() {
   const syncIngredientToBackend = useCallback(
     async (ingredient: Ingredient, action: 'add' | 'update' | 'remove') => {
       if (!isAuthenticated || !ingredient.owned) return; // Only sync owned ingredients
-      
+
       try {
         if (action === 'add') {
           const response = await post<{
@@ -244,7 +223,7 @@ export default function MyIngredientsScreen() {
             ingredient_name: ingredient.name,
             quantity: ingredient.qty ?? 1.0,
           });
-          
+
           // Map backend ID to local ID
           backendIngredientMap.current.set(ingredient.id, response.id);
         } else if (action === 'update') {
@@ -278,25 +257,26 @@ export default function MyIngredientsScreen() {
       void (async () => {
         try {
           setSyncing(true);
-          
+
           // Get current backend state
-          const pantryItems = await get<
-            { id: number; ingredient_name: string; quantity: number }[]
-          >('/users/me/pantry');
-          
+          const pantryItems =
+            await get<
+              { id: number; ingredient_name: string; quantity: number }[]
+            >('/users/me/pantry');
+
           const backendMap = new Map<string, number>();
           pantryItems.forEach((item) => {
             const { displayName } = normalizeIngredient(item.ingredient_name);
             backendMap.set(displayName.toLowerCase(), item.id);
           });
-          
+
           // Sync owned ingredients
           const ownedIngredients = ingredients.filter((i) => i.owned);
-          
+
           for (const ingredient of ownedIngredients) {
             const normalizedName = ingredient.name.toLowerCase();
             const backendId = backendMap.get(normalizedName);
-            
+
             if (backendId) {
               // Update existing
               const backendItem = pantryItems.find((p) => p.id === backendId);
@@ -313,7 +293,7 @@ export default function MyIngredientsScreen() {
               await syncIngredientToBackend(ingredient, 'add');
             }
           }
-          
+
           // Remove ingredients that are no longer owned
           for (const [localId, backendId] of backendIngredientMap.current) {
             const ingredient = ingredients.find((i) => i.id === localId);
@@ -333,7 +313,14 @@ export default function MyIngredientsScreen() {
     return () => {
       if (syncTimer.current) clearTimeout(syncTimer.current);
     };
-  }, [ingredients, loading, isAuthenticated, get, del, syncIngredientToBackend]);
+  }, [
+    ingredients,
+    loading,
+    isAuthenticated,
+    get,
+    del,
+    syncIngredientToBackend,
+  ]);
 
   /** ----- Derived data ----- */
   const ownedCount = useMemo(
@@ -471,12 +458,12 @@ export default function MyIngredientsScreen() {
     async (id: string, nextQty: number) => {
       const clamped = Math.max(0, Math.min(1, nextQty));
       const rounded = Math.round(clamped * 100) / 100;
-      
+
       setIngredients((prev) => {
         const updated = prev.map((i) =>
           i.id === id ? { ...i, qty: rounded } : i,
         );
-        
+
         // Sync quantity update to backend (after state update)
         const ingredient = updated.find((i) => i.id === id);
         if (isAuthenticated && ingredient?.owned) {
@@ -485,7 +472,7 @@ export default function MyIngredientsScreen() {
             console.warn('Failed to sync quantity update:', e);
           });
         }
-        
+
         return updated;
       });
     },
@@ -828,12 +815,16 @@ export default function MyIngredientsScreen() {
 
         {/* Toast */}
         {toast && (
-          <View style={styles.toastWrapper}>
-            <Toast 
-              text={toast.text} 
-              onUndo={toast.onUndo}
-              containerStyle={styles.toastInner}
-            />
+          <View
+            style={{
+              position: 'absolute',
+              bottom: 160,
+              left: 20,
+              right: 20,
+              zIndex: 100,
+            }}
+          >
+            <Toast text={toast.text} onUndo={toast.onUndo} />
           </View>
         )}
 
@@ -1021,9 +1012,15 @@ export default function MyIngredientsScreen() {
                             // Sync to backend immediately if owned
                             if (activeTab === 'cabinet' && isAuthenticated) {
                               try {
-                                await syncIngredientToBackend(newIngredient, 'add');
+                                await syncIngredientToBackend(
+                                  newIngredient,
+                                  'add',
+                                );
                               } catch (e) {
-                                console.warn('Failed to sync new ingredient:', e);
+                                console.warn(
+                                  'Failed to sync new ingredient:',
+                                  e,
+                                );
                               }
                             }
 
@@ -1107,8 +1104,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   body: { flex: 1 },
-  list: { 
-    flex: 1, 
+  list: {
+    flex: 1,
     overflow: 'hidden',
   },
   headerWrap: { backgroundColor: Colors.background, alignItems: 'center' },
