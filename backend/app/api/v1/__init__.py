@@ -8,6 +8,7 @@ from . import (
     routes_health,
     routes_ingredients,
     routes_recommendations,
+    budget,
 )
 
 api_v1 = APIRouter()
@@ -18,3 +19,4 @@ api_v1.include_router(routes_health.router)
 api_v1.include_router(routes_assistant.router)
 api_v1.include_router(routes_ingredients.router)
 api_v1.include_router(routes_recommendations.router)
+api_v1.include_router(budget.router)
