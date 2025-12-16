@@ -10,6 +10,7 @@ import {
   Keyboard,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import FormButton from '@/components/ui/FormButton';
 import AuthInput from '@/components/ui/AuthInput';
@@ -81,25 +82,100 @@ export default function NewPasswordScreen() {
           new_password: password,
         }),
       });
+
       if (!res.ok) {
         const txt = await res.text().catch(() => '');
-        Alert.alert(
-          'Could not reset password',
-          txt || 'Invalid or expired code.',
-        );
+        let errorMessage = 'Invalid or expired code.';
+
+        // Parse error response for more specific messages
+        try {
+          const errorData = JSON.parse(txt);
+          if (errorData.detail) {
+            errorMessage = errorData.detail;
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch {
+          if (txt) errorMessage = txt;
+        }
+
+        // Handle specific error cases
+        if (res.status === 400) {
+          Alert.alert(
+            'Invalid Code',
+            'The reset code is invalid or has expired. Please request a new one.',
+            [
+              {
+                text: 'Request New Code',
+                onPress: () => router.replace('/(auth)/reset-password'),
+              },
+              { text: 'Try Again', style: 'cancel' },
+            ],
+          );
+        } else if (res.status === 404) {
+          Alert.alert(
+            'Account Not Found',
+            'No account found with this email address.',
+            [
+              {
+                text: 'Create Account',
+                onPress: () => router.replace('/(auth)/create-account'),
+              },
+              { text: 'OK', style: 'cancel' },
+            ],
+          );
+        } else if (res.status === 429) {
+          Alert.alert(
+            'Too Many Attempts',
+            'You have made too many attempts. Please wait a few minutes before trying again.',
+            [{ text: 'OK' }],
+          );
+        } else {
+          Alert.alert('Could Not Reset Password', errorMessage, [
+            { text: 'OK' },
+          ]);
+        }
         return;
       }
+
+      // Success!
       Alert.alert(
-        'Password updated',
-        'You can now sign in with your new password.',
+        'Password Updated! 🎉',
+        'Your password has been successfully reset. You can now sign in with your new password.',
+        [
+          {
+            text: 'Sign In',
+            onPress: () => router.replace('/(auth)/login'),
+          },
+        ],
       );
-      router.replace('/(auth)/login');
     } catch (e: any) {
-      Alert.alert('Network error', e?.message ?? 'Please try again.');
+      Alert.alert(
+        'Network Error',
+        'Unable to connect to the server. Please check your internet connection and try again.',
+        [{ text: 'OK' }],
+      );
     } finally {
       setSubmitting(false);
     }
   };
+
+  // Show warning if missing required params
+  if (!normalizedEmail || !normalizedCode) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Missing Information</Text>
+        <Text style={styles.subtitle}>
+          We're missing some required information to reset your password. Please
+          start the reset process again.
+        </Text>
+        <FormButton
+          title="Start Over"
+          onPress={() => router.replace('/(auth)/reset-password')}
+        />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -117,7 +193,8 @@ export default function NewPasswordScreen() {
           <View style={styles.container}>
             <Text style={styles.title}>Create New Password</Text>
             <Text style={styles.subtitle}>
-              Set a new password for {normalizedEmail || 'your account'}.
+              Set a new password for{' '}
+              <Text style={styles.emailHighlight}>{normalizedEmail}</Text>
             </Text>
 
             <AuthInput
@@ -151,6 +228,24 @@ export default function NewPasswordScreen() {
               }}
               disabled={!allValid || submitting}
             />
+
+            {submitting && (
+              <ActivityIndicator
+                style={{ marginTop: 12 }}
+                color={Colors.link}
+              />
+            )}
+
+            {/* Option to request new code if current one is problematic */}
+            <Text style={styles.helpText}>
+              Code not working?{' '}
+              <Text
+                style={styles.link}
+                onPress={() => router.replace('/(auth)/reset-password')}
+              >
+                Request a new one
+              </Text>
+            </Text>
           </View>
         </ScrollView>
       </TouchableWithoutFeedback>
@@ -186,5 +281,18 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 16,
+  },
+  emailHighlight: {
+    color: Colors.textPrimary,
+    fontWeight: '600',
+  },
+  helpText: {
+    marginTop: 16,
+    color: Colors.textSecondary,
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  link: {
+    color: Colors.link,
   },
 });
