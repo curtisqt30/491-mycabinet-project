@@ -13,6 +13,7 @@ import {
   Pressable,
   Alert,
   ScrollView,
+  Keyboard,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -217,6 +218,23 @@ export default function AssistantScreen() {
 
   // Navigation drawer state
   const [drawerVisible, setDrawerVisible] = useState(false);
+
+  // Keyboard visibility state
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  // Listen for keyboard show/hide
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Load messages from AsyncStorage on mount
   useEffect(() => {
@@ -620,7 +638,7 @@ export default function AssistantScreen() {
         <View
           style={[
             styles.inputContainer,
-            { paddingBottom: Math.max(insets.bottom + 100, 100) },
+            { paddingBottom: keyboardVisible ? 8 : insets.bottom + 70 },
           ]}
         >
           {/* Show sample questions if only welcome message exists */}
@@ -905,7 +923,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   inputContainer: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 10,
     paddingTop: 12,
     backgroundColor: Colors.background,
     borderTopWidth: 1,
@@ -918,9 +936,9 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1.5,
     borderColor: Colors.inputBorder,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    minHeight: 52,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minHeight: 48,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -931,9 +949,9 @@ const styles = StyleSheet.create({
     flex: 1,
     color: Colors.textPrimary,
     fontSize: 16,
-    paddingVertical: 8,
-    paddingRight: 4,
-    maxHeight: 52,
+    paddingVertical: 6,
+    paddingRight: 8,
+    maxHeight: 48,
   },
   sendButton: {
     width: 36,
