@@ -374,7 +374,9 @@ export default function CreateAccountScreen() {
                   styles.resendButton,
                   (resendCooldown > 0 || busy) && styles.resendButtonDisabled,
                 ]}
-                onPress={handleResendCode}
+                onPress={() => {
+                  void handleResendCode();
+                }}
                 disabled={resendCooldown > 0 || busy}
               >
                 <Text

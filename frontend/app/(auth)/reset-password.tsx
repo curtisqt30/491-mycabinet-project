@@ -270,7 +270,13 @@ export default function ResetPasswordScreen() {
             />
 
             <FormButton
-              title={submitting ? 'Sending...' : codeSent ? 'Send New Code' : 'Send Code'}
+              title={
+                submitting
+                  ? 'Sending...'
+                  : codeSent
+                    ? 'Send New Code'
+                    : 'Send Code'
+              }
               onPress={() => {
                 void handleReset();
               }}
@@ -301,7 +307,9 @@ export default function ResetPasswordScreen() {
                     (resendCooldown > 0 || submitting) &&
                       styles.resendButtonDisabled,
                   ]}
-                  onPress={handleResendCode}
+                  onPress={() => {
+                    void handleResendCode();
+                  }}
                   disabled={resendCooldown > 0 || submitting}
                 >
                   <Text

@@ -166,8 +166,8 @@ export default function NewPasswordScreen() {
       <View style={styles.container}>
         <Text style={styles.title}>Missing Information</Text>
         <Text style={styles.subtitle}>
-          We're missing some required information to reset your password. Please
-          start the reset process again.
+          We are missing some required information to reset your password.
+          Please start the reset process again.
         </Text>
         <FormButton
           title="Start Over"
