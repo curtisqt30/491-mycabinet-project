@@ -74,10 +74,19 @@ def _format_code_for_html(code: str) -> str:
 def send_code(to: str, subject: str, code: str) -> None:
     """
     Generic code sender used by all intents (login/verify/reset/delete).
+    Includes code in subject and preheader so it shows in email notifications.
     """
     safe_code_html = _format_code_for_html(code)
+    # Put code in subject for maximum visibility in notifications
+    subject_with_code = f"{code} - {subject}"
+    # Preheader shows in Gmail/iOS notifications as secondary text
+    preheader = f"Your code is {code}"
     html = f"""
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.45">
+      <!-- Preheader text for email notifications/previews -->
+      <div style="display:none;max-height:0;overflow:hidden;mso-hide:all">
+        {preheader}
+      </div>
       <h2 style="margin:0 0 12px 0">{subject}</h2>
       <p style="margin:0 0 12px 0">Enter this code in the app. It expires in a few minutes.</p>
       <div style="font-size:28px;font-weight:700;letter-spacing:6px;margin:12px 0 16px 0">
@@ -88,12 +97,14 @@ def send_code(to: str, subject: str, code: str) -> None:
       </p>
     </div>
     """
+    # Plain text - code first so it shows in notifications
     text = (
+        f"Your code is {code}\n\n"
         f"{subject}\n"
-        f"Your code: {code}\n"
+        "Enter this code in the app. It expires in a few minutes.\n"
         "If you didn't request this, ignore this email."
     )
-    send_email(to, subject, html, text)
+    send_email(to, subject_with_code, html, text)
 
 
 # ---- Intent-specific wrappers ----
