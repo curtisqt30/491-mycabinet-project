@@ -22,6 +22,12 @@ class User(Base):
         "UserIngredient", back_populates="user", cascade="all, delete-orphan"
     )
 
+    budgets: Mapped[list[Budget]] = relationship(
+        "Budget", back_populates="user", cascade="all, delete-orphan"
+    )
+
 
 # Import after User class to avoid circular import
 from app.models.link_tables import UserIngredient  # noqa: E402
+
+from app.models.budget import Budget  # noqa: E402
