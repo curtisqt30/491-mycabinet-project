@@ -16,6 +16,7 @@ module.exports = {
     '^@expo/vector-icons$': '<rootDir>/__mocks__/@expo/vector-icons.js',
     '\\.(png|jpg|jpeg|gif|webp|svg)$': '<rootDir>/__mocks__/fileMock.js',
   },
+  
   transformIgnorePatterns: [
     'node_modules/(?!(react-native' +
       '|@react-native' +
