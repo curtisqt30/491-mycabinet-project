@@ -20,6 +20,7 @@ export type Ingredient = {
   owned: boolean;
   wanted?: boolean;
   imageUrl?: string;
+  price?: number;
 };
 
 export default function ShoppingRow({
@@ -121,7 +122,9 @@ export default function ShoppingRow({
       renderRightActions={renderRightActions}
       overshootLeft={false}
       overshootRight={false}
-      friction={2}
+      friction={1.5}
+      leftThreshold={40}
+      rightThreshold={40}
       onSwipeableOpen={handleOpen}
       childrenContainerStyle={{ overflow: 'visible' }}
     >
@@ -170,6 +173,15 @@ export default function ShoppingRow({
             </Text>
             <Text style={styles.rowSub} numberOfLines={1}>
               {item.category}
+            </Text>
+          </View>
+
+          {/* Price Badge - now inside the row so it slides with content */}
+          <View style={styles.priceBadge}>
+            <Text style={styles.priceText}>
+              {item.price && item.price > 0
+                ? `$${item.price.toFixed(2)}`
+                : '$0.00'}
             </Text>
           </View>
 
@@ -240,6 +252,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  // Price badge - inline with row content
+  priceBadge: {
+    backgroundColor: '#1E1E24',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#2C2C34',
+    marginRight: 8,
+  },
+  priceText: {
+    color: '#22c55e',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   menuButton: {
     width: 34,
     height: 34,
@@ -249,7 +276,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.buttonBackground,
-    marginLeft: 8,
     zIndex: 5,
   },
   menuDots: {

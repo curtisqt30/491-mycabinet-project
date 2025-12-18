@@ -17,6 +17,7 @@ import {
   Platform,
   UIManager,
   Pressable,
+  Alert,
 } from 'react-native';
 import { Stack } from 'expo-router';
 import {
@@ -30,6 +31,7 @@ import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import { normalizeIngredient } from '../utils/normalize';
 import { ingredientImageUrl } from '../utils/cocktaildb';
 import { loadIngredientCatalog } from '../utils/ingredientCatalog';
+import { categorizeIngredient } from '../utils/categorizeIngredient';
 import { useApi } from '@/app/lib/useApi';
 import { useAuth } from '@/app/lib/AuthContext';
 
@@ -62,9 +64,13 @@ export type Ingredient = {
   imageUrl?: string;
   /** 0..1 fraction remaining. default 1 (full). */
   qty?: number;
+  /** User-entered price for budgeting */
+  price?: number;
 };
 
 const STORAGE_KEY = '@mixology:cabinet_v1';
+const BUDGET_KEY = '@mixology:budget_v1';
+const SPENT_KEY = '@mixology:spent_v1';
 
 /** ---------- Main Screen Component ---------- */
 export default function MyIngredientsScreen() {
@@ -77,6 +83,12 @@ export default function MyIngredientsScreen() {
   const [query, setQuery] = useState('');
   const [sortAsc, setSortAsc] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState<'All' | Category>('All');
+
+  // Budget State
+  const [budget, setBudget] = useState<number>(0);
+  const [spent, setSpent] = useState<number>(0);
+  const [budgetModalVisible, setBudgetModalVisible] = useState(false);
+  const [tempBudget, setTempBudget] = useState('');
 
   const [toast, setToast] = useState<{
     text: string;
@@ -91,6 +103,11 @@ export default function MyIngredientsScreen() {
   const [renamingItem, setRenamingItem] = useState<Ingredient | null>(null);
   const [newName, setNewName] = useState('');
 
+  // Price Modal
+  const [priceModalVisible, setPriceModalVisible] = useState(false);
+  const [pricingItem, setPricingItem] = useState<Ingredient | null>(null);
+  const [newPrice, setNewPrice] = useState('');
+
   // local persistence state
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -99,14 +116,16 @@ export default function MyIngredientsScreen() {
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Track backend ingredient IDs for syncing
-  const backendIngredientMap = useRef<Map<string, number>>(new Map()); // local_id -> backend_id
+  const backendIngredientMap = useRef<Map<string, number>>(new Map());
 
   // adding new ingredient
   const [addVisible, setAddVisible] = useState(false);
   const [catalog, setCatalog] = useState<{ name: string }[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [addQuery, setAddQuery] = useState('');
-  const [qty, setQty] = useState(1); // stepper in Add modal (1 = full)
+  const [qty, setQty] = useState(1);
+  const [addPrice, setAddPrice] = useState('');
+  const [targetList, setTargetList] = useState<'cabinet' | 'shopping'>('cabinet');
 
   // Navigation drawer state
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -116,6 +135,16 @@ export default function MyIngredientsScreen() {
     void (async () => {
       try {
         setLoading(true);
+
+        // Load budget and spent first (always from AsyncStorage)
+        const rawBudget = await AsyncStorage.getItem(BUDGET_KEY);
+        if (rawBudget) {
+          setBudget(parseFloat(rawBudget));
+        }
+        const rawSpent = await AsyncStorage.getItem(SPENT_KEY);
+        if (rawSpent) {
+          setSpent(parseFloat(rawSpent));
+        }
 
         // Try to load from database first (if authenticated)
         if (isAuthenticated) {
@@ -138,9 +167,10 @@ export default function MyIngredientsScreen() {
                   return {
                     id: localId,
                     name: displayName,
-                    category: 'Other', // Default category
-                    owned: true, // All items from pantry are owned
+                    category: categorizeIngredient(displayName),
+                    owned: true,
                     qty: item.quantity,
+                    price: 0,
                     imageUrl: ingredientImageUrl(
                       canonicalName || displayName,
                       'Small',
@@ -149,20 +179,28 @@ export default function MyIngredientsScreen() {
                 },
               );
 
-              setIngredients(loadedIngredients);
-
-              // Save to AsyncStorage as cache
-              await AsyncStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify(mergedIngredients),
-              );
+              // Also load any cached shopping list items
+              const raw = await AsyncStorage.getItem(STORAGE_KEY);
+              if (raw) {
+                const cached = JSON.parse(raw) as Ingredient[];
+                const shoppingItems = cached
+                  .filter((i) => i.wanted && !i.owned)
+                  .map((i) => ({
+                    ...i,
+                    category: i.category === 'Other' ? categorizeIngredient(i.name) : i.category,
+                  }));
+                // Merge: backend owned items + cached shopping items
+                const merged = [...loadedIngredients, ...shoppingItems];
+                setIngredients(merged);
+              } else {
+                setIngredients(loadedIngredients);
+              }
 
               setLoading(false);
               return;
             }
           } catch (e) {
             console.warn('Failed to load from database, using cache:', e);
-            // Fall through to AsyncStorage
           }
         }
 
@@ -171,9 +209,12 @@ export default function MyIngredientsScreen() {
         if (raw) {
           const parsed = JSON.parse(raw) as Ingredient[];
           setIngredients(
-            existingIngredients.map((i) => ({
+            parsed.map((i) => ({
               ...i,
               qty: typeof i.qty === 'number' ? i.qty : 1,
+              price: typeof i.price === 'number' ? i.price : 0,
+              // Recategorize if it was 'Other' (legacy data)
+              category: i.category === 'Other' ? categorizeIngredient(i.name) : i.category,
             })),
           );
         }
@@ -195,6 +236,8 @@ export default function MyIngredientsScreen() {
         try {
           setSaving(true);
           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(ingredients));
+          await AsyncStorage.setItem(BUDGET_KEY, budget.toString());
+          await AsyncStorage.setItem(SPENT_KEY, spent.toString());
         } catch (e) {
           console.warn('Failed to save cabinet to cache:', e);
         } finally {
@@ -206,12 +249,12 @@ export default function MyIngredientsScreen() {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [ingredients, loading]);
+  }, [ingredients, budget, spent, loading]);
 
   /** ----- Sync to Database (background) ----- */
   const syncIngredientToBackend = useCallback(
     async (ingredient: Ingredient, action: 'add' | 'update' | 'remove') => {
-      if (!isAuthenticated || !ingredient.owned) return; // Only sync owned ingredients
+      if (!isAuthenticated || !ingredient.owned) return;
 
       try {
         if (action === 'add') {
@@ -224,7 +267,6 @@ export default function MyIngredientsScreen() {
             quantity: ingredient.qty ?? 1.0,
           });
 
-          // Map backend ID to local ID
           backendIngredientMap.current.set(ingredient.id, response.id);
         } else if (action === 'update') {
           const backendId = backendIngredientMap.current.get(ingredient.id);
@@ -242,7 +284,6 @@ export default function MyIngredientsScreen() {
         }
       } catch (e) {
         console.warn(`Failed to sync ingredient ${action}:`, e);
-        // Don't throw - allow offline operation
       }
     },
     [isAuthenticated, post, put, del],
@@ -258,7 +299,6 @@ export default function MyIngredientsScreen() {
         try {
           setSyncing(true);
 
-          // Get current backend state
           const pantryItems =
             await get<
               { id: number; ingredient_name: string; quantity: number }[]
@@ -270,7 +310,6 @@ export default function MyIngredientsScreen() {
             backendMap.set(displayName.toLowerCase(), item.id);
           });
 
-          // Sync owned ingredients
           const ownedIngredients = ingredients.filter((i) => i.owned);
 
           for (const ingredient of ownedIngredients) {
@@ -278,7 +317,6 @@ export default function MyIngredientsScreen() {
             const backendId = backendMap.get(normalizedName);
 
             if (backendId) {
-              // Update existing
               const backendItem = pantryItems.find((p) => p.id === backendId);
               if (
                 backendItem &&
@@ -289,12 +327,10 @@ export default function MyIngredientsScreen() {
               }
               backendIngredientMap.current.set(ingredient.id, backendId);
             } else {
-              // Add new
               await syncIngredientToBackend(ingredient, 'add');
             }
           }
 
-          // Remove ingredients that are no longer owned
           for (const [localId, backendId] of backendIngredientMap.current) {
             const ingredient = ingredients.find((i) => i.id === localId);
             if (!ingredient || !ingredient.owned) {
@@ -308,7 +344,7 @@ export default function MyIngredientsScreen() {
           setSyncing(false);
         }
       })();
-    }, 1000); // Debounce sync by 1 second
+    }, 1000);
 
     return () => {
       if (syncTimer.current) clearTimeout(syncTimer.current);
@@ -372,6 +408,14 @@ export default function MyIngredientsScreen() {
     [ingredients, sortByName, filterByQueryAndCategory],
   );
 
+  // Budget Calculations
+  const currentCartTotal = useMemo(() => {
+    return shoppingItems.reduce((sum, item) => sum + (item.price || 0), 0);
+  }, [shoppingItems]);
+
+  const remainingBudget = budget - (spent + currentCartTotal);
+  const isOverBudget = remainingBudget < 0;
+
   /** ----- Actions ----- */
   const clearQuery = () => setQuery('');
 
@@ -382,6 +426,8 @@ export default function MyIngredientsScreen() {
 
   const onPressAdd = async () => {
     setAddVisible(true);
+    setAddPrice('');
+    setTargetList(activeTab);
     if (!catalog.length && !catalogLoading) {
       setCatalogLoading(true);
       try {
@@ -453,7 +499,6 @@ export default function MyIngredientsScreen() {
     });
   };
 
-  // NEW: qty adjust handler (clamp & round to 2 decimals)
   const adjustQty = useCallback(
     async (id: string, nextQty: number) => {
       const clamped = Math.max(0, Math.min(1, nextQty));
@@ -464,10 +509,8 @@ export default function MyIngredientsScreen() {
           i.id === id ? { ...i, qty: rounded } : i,
         );
 
-        // Sync quantity update to backend (after state update)
         const ingredient = updated.find((i) => i.id === id);
         if (isAuthenticated && ingredient?.owned) {
-          // Sync in background, don't await
           syncIngredientToBackend(ingredient, 'update').catch((e) => {
             console.warn('Failed to sync quantity update:', e);
           });
@@ -482,6 +525,10 @@ export default function MyIngredientsScreen() {
   const markPurchasedSingle = (id: string) => {
     const it = ingredients.find((i) => i.id === id);
     if (!it) return;
+
+    const cost = it.price || 0;
+    setSpent((prev) => prev + cost);
+
     setIngredients((prev) =>
       prev.map((i) =>
         i.id === id ? { ...i, wanted: false, owned: true, qty: 1 } : i,
@@ -490,6 +537,7 @@ export default function MyIngredientsScreen() {
     setToast({
       text: `Marked "${it.name}" as purchased`,
       onUndo: () => {
+        setSpent((prev) => Math.max(0, prev - cost));
         setIngredients((prev) =>
           prev.map((i) =>
             i.id === id
@@ -504,6 +552,10 @@ export default function MyIngredientsScreen() {
 
   const markPurchased = () => {
     if (shoppingItems.length === 0) return;
+
+    const totalCost = shoppingItems.reduce((sum, i) => sum + (i.price || 0), 0);
+    setSpent((prev) => prev + totalCost);
+
     setIngredients((prev) =>
       prev.map((i) =>
         i.wanted ? { ...i, wanted: false, owned: true, qty: 1 } : i,
@@ -567,6 +619,74 @@ export default function MyIngredientsScreen() {
     setNewName('');
   };
 
+  // Price Logic
+  const handleSetPrice = (id: string) => {
+    const it = ingredients.find((i) => i.id === id);
+    if (!it) return;
+    setPricingItem(it);
+    setNewPrice(it.price ? it.price.toString() : '');
+    setPriceModalVisible(true);
+    setIsSheetOpen(false);
+    setOpenMenuForId(null);
+  };
+
+  const confirmPrice = () => {
+    if (!pricingItem) return;
+    const priceVal = parseFloat(newPrice);
+    const finalPrice = isNaN(priceVal) ? 0 : Math.max(0, priceVal);
+
+    setIngredients((prev) =>
+      prev.map((i) =>
+        i.id === pricingItem.id ? { ...i, price: finalPrice } : i,
+      ),
+    );
+
+    setPriceModalVisible(false);
+    setPricingItem(null);
+    setNewPrice('');
+  };
+
+  const cancelPrice = () => {
+    setPriceModalVisible(false);
+    setPricingItem(null);
+    setNewPrice('');
+  };
+
+  // Budget Logic
+  const handleOpenBudget = () => {
+    setTempBudget(budget > 0 ? budget.toString() : '');
+    setBudgetModalVisible(true);
+  };
+
+  const saveBudget = () => {
+    const val = parseFloat(tempBudget);
+    setBudget(isNaN(val) ? 0 : Math.max(0, val));
+    setBudgetModalVisible(false);
+  };
+
+  const cancelBudget = () => {
+    setBudgetModalVisible(false);
+    setTempBudget('');
+  };
+
+  const resetSpending = () => {
+    Alert.alert(
+      'Reset Spending History?',
+      "This will set your 'Total Spent' to $0.00. Do this at the start of a new month.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: () => {
+            setSpent(0);
+            setBudgetModalVisible(false);
+          },
+        },
+      ],
+    );
+  };
+
   // Toast lifecycle
   useEffect(() => {
     if (toastTimerRef.current) {
@@ -574,7 +694,6 @@ export default function MyIngredientsScreen() {
       toastTimerRef.current = null;
     }
     if (toast) {
-      // @ts-ignore numeric timeout in RN
       toastTimerRef.current = setTimeout(
         () => setToast(null),
         5000,
@@ -681,6 +800,37 @@ export default function MyIngredientsScreen() {
 
   const ShoppingView = (
     <>
+      {/* Budget Header */}
+      <View style={styles.budgetHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.budgetLabel}>Monthly Budget</Text>
+          <Text
+            style={[styles.budgetAmount, isOverBudget && styles.overBudget]}
+          >
+            ${remainingBudget.toFixed(2)}{' '}
+            <Text style={styles.budgetTotal}>/ ${budget.toFixed(2)}</Text>
+          </Text>
+          <View style={{ flexDirection: 'row', marginTop: 6, gap: 12 }}>
+            <Text style={styles.spentText}>
+              Spent:{' '}
+              <Text style={{ color: '#E4E4E7' }}>${spent.toFixed(2)}</Text>
+            </Text>
+            <Text style={styles.spentText}>
+              Cart:{' '}
+              <Text style={{ color: '#E4E4E7' }}>
+                ${currentCartTotal.toFixed(2)}
+              </Text>
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={styles.setBudgetBtn}
+          onPress={handleOpenBudget}
+        >
+          <Text style={styles.setBudgetBtnText}>Edit</Text>
+        </TouchableOpacity>
+      </View>
+
       <SearchBar value={query} onChangeText={setQuery} onClear={clearQuery} />
 
       <View style={styles.filtersRow}>
@@ -748,6 +898,7 @@ export default function MyIngredientsScreen() {
           },
         ]
       : [
+          { label: 'Edit Price', onPress: () => handleSetPrice(openMenuForId) },
           { label: 'Rename', onPress: () => handleRename(openMenuForId) },
           {
             label: 'Mark Purchased',
@@ -777,12 +928,16 @@ export default function MyIngredientsScreen() {
       {/* Centered page header */}
       <View style={[styles.headerWrap, { paddingTop: insets.top + 56 }]}>
         <Text style={styles.title}>My Cabinet</Text>
-        {loading ? (
-          <Text style={styles.subtle}>Loading…</Text>
-        ) : saving ? (
-          <Text style={styles.subtle}>Saving…</Text>
-        ) : null}
       </View>
+
+      {/* Loading/Saving indicator - absolute overlay */}
+      {(loading || saving) && (
+        <View style={[styles.statusBadge, { top: insets.top + 56 + 36 }]}>
+          <Text style={styles.statusText}>
+            {loading ? 'Loading…' : 'Saving…'}
+          </Text>
+        </View>
+      )}
 
       <View style={styles.container}>
         {/* Tabs */}
@@ -837,6 +992,102 @@ export default function MyIngredientsScreen() {
           }}
           actions={sheetActions}
         />
+
+        {/* Budget Modal */}
+        <Modal
+          visible={budgetModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={cancelBudget}
+        >
+          <Pressable style={styles.modalOverlay} onPress={cancelBudget}>
+            <Pressable
+              style={styles.modalContent}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <Text style={styles.modalTitle}>Set Monthly Budget</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={tempBudget}
+                onChangeText={setTempBudget}
+                placeholder="Enter amount (e.g. 100)"
+                placeholderTextColor="#8B8B8B"
+                keyboardType="numeric"
+                autoFocus
+                selectTextOnFocus
+                onSubmitEditing={saveBudget}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  onPress={cancelBudget}
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                >
+                  <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={saveBudget}
+                  style={[styles.modalButton, styles.modalButtonConfirm]}
+                >
+                  <Text style={styles.modalButtonTextConfirm}>Save</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Reset Spending Button */}
+              <TouchableOpacity
+                onPress={resetSpending}
+                style={{ marginTop: 20, alignSelf: 'center', padding: 8 }}
+              >
+                <Text
+                  style={{ color: '#ef4444', fontSize: 14, fontWeight: '600' }}
+                >
+                  Reset Spending History
+                </Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* Price Modal */}
+        <Modal
+          visible={priceModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={cancelPrice}
+        >
+          <Pressable style={styles.modalOverlay} onPress={cancelPrice}>
+            <Pressable
+              style={styles.modalContent}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <Text style={styles.modalTitle}>Item Price</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={newPrice}
+                onChangeText={setNewPrice}
+                placeholder="0.00"
+                placeholderTextColor="#8B8B8B"
+                keyboardType="decimal-pad"
+                autoFocus
+                selectTextOnFocus
+                onSubmitEditing={confirmPrice}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  onPress={cancelPrice}
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                >
+                  <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={confirmPrice}
+                  style={[styles.modalButton, styles.modalButtonConfirm]}
+                >
+                  <Text style={styles.modalButtonTextConfirm}>Set Price</Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         {/* Rename Modal */}
         <Modal
@@ -919,6 +1170,60 @@ export default function MyIngredientsScreen() {
                 style={styles.modalInput}
               />
 
+              {/* List Toggle */}
+              <View style={styles.toggleRow}>
+                <Text style={styles.toggleLabel}>Add to:</Text>
+                <View style={styles.toggleOptions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.toggleOption,
+                      targetList === 'cabinet' && styles.toggleOptionActive,
+                    ]}
+                    onPress={() => setTargetList('cabinet')}
+                  >
+                    <Text
+                      style={[
+                        styles.toggleText,
+                        targetList === 'cabinet' && styles.toggleTextActive,
+                      ]}
+                    >
+                      Cabinet
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.toggleOption,
+                      targetList === 'shopping' && styles.toggleOptionActive,
+                    ]}
+                    onPress={() => setTargetList('shopping')}
+                  >
+                    <Text
+                      style={[
+                        styles.toggleText,
+                        targetList === 'shopping' && styles.toggleTextActive,
+                      ]}
+                    >
+                      Shopping
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Price Input for Add */}
+              <Text
+                style={{ color: '#CFCFCF', fontWeight: '600', marginBottom: 8 }}
+              >
+                Estimated Price (Optional)
+              </Text>
+              <TextInput
+                value={addPrice}
+                onChangeText={setAddPrice}
+                placeholder="0.00"
+                placeholderTextColor="#8B8B8B"
+                keyboardType="decimal-pad"
+                style={[styles.modalInput, { marginBottom: 16 }]}
+              />
+
               {/* Quantity stepper */}
               <View
                 style={{
@@ -973,7 +1278,7 @@ export default function MyIngredientsScreen() {
               </View>
 
               {/* Results list */}
-              <View style={{ maxHeight: 340 }}>
+              <View style={{ maxHeight: 240 }}>
                 {catalogLoading ? (
                   <Text style={{ color: '#9BA3AF' }}>Loading catalog…</Text>
                 ) : (
@@ -993,24 +1298,28 @@ export default function MyIngredientsScreen() {
                             const { displayName, canonicalName } =
                               normalizeIngredient(item.name);
                             const name = displayName;
+
+                            let p = parseFloat(addPrice);
+                            if (isNaN(p)) p = 0;
+
                             const newIngredient: Ingredient = {
                               id,
                               name,
-                              category: 'Other',
-                              owned: activeTab === 'cabinet',
-                              wanted: activeTab === 'shopping',
+                              category: categorizeIngredient(name),
+                              owned: targetList === 'cabinet',
+                              wanted: targetList === 'shopping',
                               impactScore: Math.random(),
                               imageUrl: ingredientImageUrl(
                                 canonicalName || name,
                                 'Small',
                               ),
-                              qty: Math.max(0, Math.min(1, qty)), // save fraction
+                              qty: Math.max(0, Math.min(1, qty)),
+                              price: p,
                             };
 
                             setIngredients((prev) => [...prev, newIngredient]);
 
-                            // Sync to backend immediately if owned
-                            if (activeTab === 'cabinet' && isAuthenticated) {
+                            if (targetList === 'cabinet' && isAuthenticated) {
                               try {
                                 await syncIngredientToBackend(
                                   newIngredient,
@@ -1027,6 +1336,7 @@ export default function MyIngredientsScreen() {
                             setAddVisible(false);
                             setAddQuery('');
                             setQty(1);
+                            setAddPrice('');
                           })();
                         }}
                         style={{
@@ -1109,20 +1419,21 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   headerWrap: { backgroundColor: Colors.background, alignItems: 'center' },
-  toastWrapper: {
+  statusBadge: {
     position: 'absolute',
-    bottom: 170,
-    left: 20,
-    right: 20,
-    zIndex: 100,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(28, 28, 32, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2A2A30',
+    zIndex: 20,
   },
-  toastInner: {
-    // Override Toast's absolute positioning to make it relative to wrapper
-    position: 'relative',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    // Remove the base left/right: 20 to prevent offsetting with relative positioning
+  statusText: {
+    color: '#9BA3AF',
+    fontSize: 12,
+    fontWeight: '600',
   },
   menuWrap: { position: 'absolute', left: 14, zIndex: 10 },
   title: {
@@ -1132,11 +1443,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 4,
   },
-  subtle: {
-    color: Colors.textSecondary ?? '#9BA3AF',
-    fontSize: 12,
-    marginBottom: 8,
-  },
 
   tabsRow: {
     flexDirection: 'row',
@@ -1144,6 +1450,59 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
     gap: 8,
+  },
+
+  // Budget Styles
+  budgetHeader: {
+    backgroundColor: '#1E1E24',
+    marginHorizontal: 12,
+    marginTop: 8,
+    marginBottom: 8,
+    padding: 16,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2C2C34',
+  },
+  budgetLabel: {
+    color: '#9BA3AF',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  budgetAmount: {
+    color: '#22c55e',
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  budgetTotal: {
+    color: '#555',
+    fontSize: 18,
+    fontWeight: '500',
+  },
+  overBudget: {
+    color: '#ef4444',
+  },
+  spentText: {
+    color: '#9BA3AF',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  setBudgetBtn: {
+    backgroundColor: '#2C2C34',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#3F3F46',
+  },
+  setBudgetBtnText: {
+    color: '#E4E4E7',
+    fontSize: 12,
+    fontWeight: '600',
   },
 
   sectionHeader: { paddingTop: 20, paddingHorizontal: 20, paddingBottom: 8 },
@@ -1233,6 +1592,38 @@ const styles = StyleSheet.create({
     borderColor: Colors.accentPrimary,
   },
   fabPlus: { color: '#FFFFFF', fontSize: 30, marginTop: -2, fontWeight: '600' },
+
+  // Toggle Row in Modal
+  toggleRow: {
+    marginBottom: 16,
+  },
+  toggleLabel: {
+    color: '#CFCFCF',
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  toggleOptions: {
+    flexDirection: 'row',
+    backgroundColor: '#232329',
+    borderRadius: 10,
+    padding: 2,
+  },
+  toggleOption: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  toggleOptionActive: {
+    backgroundColor: Colors.accentPrimary,
+  },
+  toggleText: {
+    color: '#8B8B8B',
+    fontWeight: '600',
+  },
+  toggleTextActive: {
+    color: '#FFFFFF',
+  },
 
   // Modal
   modalOverlay: {

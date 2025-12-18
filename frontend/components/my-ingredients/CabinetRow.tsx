@@ -15,12 +15,18 @@ import SwipeAction from './SwipeAction';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 
 export type Category =
-  | 'Spirit'
-  | 'Liqueur'
-  | 'Mixer'
-  | 'Juice'
-  | 'Garnish'
+  | 'Spirits'
+  | 'Liqueurs'
+  | 'Mixers'
+  | 'Bitters'
+  | 'Fruits'
+  | 'Syrups'
+  | 'Dairy'
+  | 'Garnishes'
+  | 'Wine'
+  | 'Beer'
   | 'Other';
+
 export type Ingredient = {
   id: string;
   name: string;
@@ -31,6 +37,7 @@ export type Ingredient = {
   imageUrl?: string;
   /** 0..1 fraction remaining. default 1 (full). */
   qty?: number;
+  price?: number;
 };
 
 export default function CabinetRow({
@@ -62,7 +69,7 @@ export default function CabinetRow({
 
   const currentSrc =
     candidates[Math.min(idx, Math.max(0, candidates.length - 1))];
-  // Bust cache between attempts so cached 404s don’t stick (especially on web)
+  // Bust cache between attempts so cached 404s don't stick (especially on web)
   const bustedSrc = currentSrc
     ? `${currentSrc}${currentSrc.includes('?') ? '&' : '?'}try=${idx}`
     : undefined;
@@ -113,7 +120,9 @@ export default function CabinetRow({
       renderRightActions={renderRightActions}
       overshootLeft={false}
       overshootRight={false}
-      friction={2}
+      friction={1.5}
+      leftThreshold={40}
+      rightThreshold={40}
       onSwipeableOpen={handleOpen}
       childrenContainerStyle={{ overflow: 'visible' }}
     >
