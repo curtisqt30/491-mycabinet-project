@@ -16,6 +16,7 @@ import {
   Image,
   Platform,
   UIManager,
+  Pressable,
   Alert,
 } from 'react-native';
 import { Stack } from 'expo-router';
@@ -30,6 +31,9 @@ import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
 import { normalizeIngredient } from '../utils/normalize';
 import { ingredientImageUrl } from '../utils/cocktaildb';
 import { loadIngredientCatalog } from '../utils/ingredientCatalog';
+import { categorizeIngredient } from '../utils/categorizeIngredient';
+import { useApi } from '@/app/lib/useApi';
+import { useAuth } from '@/app/lib/AuthContext';
 
 // Components
 import Chip from '@/components/my-ingredients/Chip';
@@ -66,11 +70,13 @@ export type Ingredient = {
 
 const STORAGE_KEY = '@mixology:cabinet_v1';
 const BUDGET_KEY = '@mixology:budget_v1';
-const SPENT_KEY = '@mixology:spent_v1'; // New key for tracking spent amount
+const SPENT_KEY = '@mixology:spent_v1';
 
 /** ---------- Main Screen Component ---------- */
 export default function MyIngredientsScreen() {
   const insets = useSafeAreaInsets();
+  const { get, post, put, del } = useApi();
+  const { isAuthenticated } = useAuth();
 
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [activeTab, setActiveTab] = useState<'cabinet' | 'shopping'>('cabinet');
@@ -80,7 +86,7 @@ export default function MyIngredientsScreen() {
 
   // Budget State
   const [budget, setBudget] = useState<number>(0);
-  const [spent, setSpent] = useState<number>(0); // Track actual spending
+  const [spent, setSpent] = useState<number>(0);
   const [budgetModalVisible, setBudgetModalVisible] = useState(false);
   const [tempBudget, setTempBudget] = useState('');
 
@@ -93,8 +99,6 @@ export default function MyIngredientsScreen() {
   // Sheet & rename
   const [openMenuForId, setOpenMenuForId] = useState<string | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-
-  // Rename Modal
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [renamingItem, setRenamingItem] = useState<Ingredient | null>(null);
   const [newName, setNewName] = useState('');
@@ -107,27 +111,100 @@ export default function MyIngredientsScreen() {
   // local persistence state
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [_syncing, setSyncing] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Track backend ingredient IDs for syncing
+  const backendIngredientMap = useRef<Map<string, number>>(new Map());
 
   // adding new ingredient
   const [addVisible, setAddVisible] = useState(false);
   const [catalog, setCatalog] = useState<{ name: string }[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [addQuery, setAddQuery] = useState('');
-  const [qty, setQty] = useState(1); // stepper in Add modal (1 = full)
-  const [addPrice, setAddPrice] = useState(''); // Price input in Add modal
-  const [targetList, setTargetList] = useState<'cabinet' | 'shopping'>(
-    'cabinet',
-  ); // Explicit toggle
+  const [qty, setQty] = useState(1);
+  const [addPrice, setAddPrice] = useState('');
+  const [targetList, setTargetList] = useState<'cabinet' | 'shopping'>('cabinet');
 
   // Navigation drawer state
   const [drawerVisible, setDrawerVisible] = useState(false);
 
-  /** ----- Persistence ----- */
+  /** ----- Load from Database or AsyncStorage ----- */
   useEffect(() => {
     void (async () => {
       try {
-        // Load Ingredients
+        setLoading(true);
+
+        // Load budget and spent first (always from AsyncStorage)
+        const rawBudget = await AsyncStorage.getItem(BUDGET_KEY);
+        if (rawBudget) {
+          setBudget(parseFloat(rawBudget));
+        }
+        const rawSpent = await AsyncStorage.getItem(SPENT_KEY);
+        if (rawSpent) {
+          setSpent(parseFloat(rawSpent));
+        }
+
+        // Try to load from database first (if authenticated)
+        if (isAuthenticated) {
+          try {
+            const pantryItems =
+              await get<
+                { id: number; ingredient_name: string; quantity: number }[]
+              >('/users/me/pantry');
+
+            if (pantryItems && pantryItems.length > 0) {
+              // Convert backend format to local format
+              const loadedIngredients: Ingredient[] = pantryItems.map(
+                (item) => {
+                  const { displayName, canonicalName } = normalizeIngredient(
+                    item.ingredient_name,
+                  );
+                  const localId = `db_${item.id}`;
+                  backendIngredientMap.current.set(localId, item.id);
+
+                  return {
+                    id: localId,
+                    name: displayName,
+                    category: categorizeIngredient(displayName),
+                    owned: true,
+                    qty: item.quantity,
+                    price: 0,
+                    imageUrl: ingredientImageUrl(
+                      canonicalName || displayName,
+                      'Small',
+                    ),
+                  };
+                },
+              );
+
+              // Also load any cached shopping list items
+              const raw = await AsyncStorage.getItem(STORAGE_KEY);
+              if (raw) {
+                const cached = JSON.parse(raw) as Ingredient[];
+                const shoppingItems = cached
+                  .filter((i) => i.wanted && !i.owned)
+                  .map((i) => ({
+                    ...i,
+                    category: i.category === 'Other' ? categorizeIngredient(i.name) : i.category,
+                  }));
+                // Merge: backend owned items + cached shopping items
+                const merged = [...loadedIngredients, ...shoppingItems];
+                setIngredients(merged);
+              } else {
+                setIngredients(loadedIngredients);
+              }
+
+              setLoading(false);
+              return;
+            }
+          } catch (e) {
+            console.warn('Failed to load from database, using cache:', e);
+          }
+        }
+
+        // Fallback to AsyncStorage
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
           const parsed = JSON.parse(raw) as Ingredient[];
@@ -136,29 +213,20 @@ export default function MyIngredientsScreen() {
               ...i,
               qty: typeof i.qty === 'number' ? i.qty : 1,
               price: typeof i.price === 'number' ? i.price : 0,
+              // Recategorize if it was 'Other' (legacy data)
+              category: i.category === 'Other' ? categorizeIngredient(i.name) : i.category,
             })),
           );
         }
-
-        // Load Budget
-        const rawBudget = await AsyncStorage.getItem(BUDGET_KEY);
-        if (rawBudget) {
-          setBudget(parseFloat(rawBudget));
-        }
-
-        // Load Spent
-        const rawSpent = await AsyncStorage.getItem(SPENT_KEY);
-        if (rawSpent) {
-          setSpent(parseFloat(rawSpent));
-        }
       } catch (e) {
-        console.warn('Failed to load cabinet data:', e);
+        console.warn('Failed to load cabinet:', e);
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [isAuthenticated, get]);
 
+  /** ----- Sync to AsyncStorage (cache) ----- */
   useEffect(() => {
     if (loading) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -171,7 +239,7 @@ export default function MyIngredientsScreen() {
           await AsyncStorage.setItem(BUDGET_KEY, budget.toString());
           await AsyncStorage.setItem(SPENT_KEY, spent.toString());
         } catch (e) {
-          console.warn('Failed to save cabinet data:', e);
+          console.warn('Failed to save cabinet to cache:', e);
         } finally {
           setSaving(false);
         }
@@ -182,6 +250,113 @@ export default function MyIngredientsScreen() {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
   }, [ingredients, budget, spent, loading]);
+
+  /** ----- Sync to Database (background) ----- */
+  const syncIngredientToBackend = useCallback(
+    async (ingredient: Ingredient, action: 'add' | 'update' | 'remove') => {
+      if (!isAuthenticated || !ingredient.owned) return;
+
+      try {
+        if (action === 'add') {
+          const response = await post<{
+            id: number;
+            ingredient_name: string;
+            quantity: number;
+          }>('/users/me/pantry', {
+            ingredient_name: ingredient.name,
+            quantity: ingredient.qty ?? 1.0,
+          });
+
+          backendIngredientMap.current.set(ingredient.id, response.id);
+        } else if (action === 'update') {
+          const backendId = backendIngredientMap.current.get(ingredient.id);
+          if (backendId) {
+            await put(`/users/me/pantry/${backendId}`, {
+              quantity: ingredient.qty ?? 1.0,
+            });
+          }
+        } else if (action === 'remove') {
+          const backendId = backendIngredientMap.current.get(ingredient.id);
+          if (backendId) {
+            await del(`/users/me/pantry/${backendId}`);
+            backendIngredientMap.current.delete(ingredient.id);
+          }
+        }
+      } catch (e) {
+        console.warn(`Failed to sync ingredient ${action}:`, e);
+      }
+    },
+    [isAuthenticated, post, put, del],
+  );
+
+  /** ----- Debounced sync to backend ----- */
+  useEffect(() => {
+    if (loading || !isAuthenticated) return;
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+
+    syncTimer.current = setTimeout(() => {
+      void (async () => {
+        try {
+          setSyncing(true);
+
+          const pantryItems =
+            await get<
+              { id: number; ingredient_name: string; quantity: number }[]
+            >('/users/me/pantry');
+
+          const backendMap = new Map<string, number>();
+          pantryItems.forEach((item) => {
+            const { displayName } = normalizeIngredient(item.ingredient_name);
+            backendMap.set(displayName.toLowerCase(), item.id);
+          });
+
+          const ownedIngredients = ingredients.filter((i) => i.owned);
+
+          for (const ingredient of ownedIngredients) {
+            const normalizedName = ingredient.name.toLowerCase();
+            const backendId = backendMap.get(normalizedName);
+
+            if (backendId) {
+              const backendItem = pantryItems.find((p) => p.id === backendId);
+              if (
+                backendItem &&
+                Math.abs((backendItem.quantity ?? 1) - (ingredient.qty ?? 1)) >
+                  0.01
+              ) {
+                await syncIngredientToBackend(ingredient, 'update');
+              }
+              backendIngredientMap.current.set(ingredient.id, backendId);
+            } else {
+              await syncIngredientToBackend(ingredient, 'add');
+            }
+          }
+
+          for (const [localId, backendId] of backendIngredientMap.current) {
+            const ingredient = ingredients.find((i) => i.id === localId);
+            if (!ingredient || !ingredient.owned) {
+              await del(`/users/me/pantry/${backendId}`);
+              backendIngredientMap.current.delete(localId);
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to sync to backend:', e);
+        } finally {
+          setSyncing(false);
+        }
+      })();
+    }, 1000);
+
+    return () => {
+      if (syncTimer.current) clearTimeout(syncTimer.current);
+    };
+  }, [
+    ingredients,
+    loading,
+    isAuthenticated,
+    get,
+    del,
+    syncIngredientToBackend,
+  ]);
 
   /** ----- Derived data ----- */
   const ownedCount = useMemo(
@@ -238,7 +413,6 @@ export default function MyIngredientsScreen() {
     return shoppingItems.reduce((sum, item) => sum + (item.price || 0), 0);
   }, [shoppingItems]);
 
-  // Remaining = Budget - (Already Spent + Currently in Cart)
   const remainingBudget = budget - (spent + currentCartTotal);
   const isOverBudget = remainingBudget < 0;
 
@@ -253,7 +427,7 @@ export default function MyIngredientsScreen() {
   const onPressAdd = async () => {
     setAddVisible(true);
     setAddPrice('');
-    setTargetList(activeTab); // Default to current tab
+    setTargetList(activeTab);
     if (!catalog.length && !catalogLoading) {
       setCatalogLoading(true);
       try {
@@ -325,19 +499,33 @@ export default function MyIngredientsScreen() {
     });
   };
 
-  const adjustQty = useCallback((id: string, nextQty: number) => {
-    const clamped = Math.max(0, Math.min(1, nextQty));
-    const rounded = Math.round(clamped * 100) / 100;
-    setIngredients((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, qty: rounded } : i)),
-    );
-  }, []);
+  const adjustQty = useCallback(
+    async (id: string, nextQty: number) => {
+      const clamped = Math.max(0, Math.min(1, nextQty));
+      const rounded = Math.round(clamped * 100) / 100;
+
+      setIngredients((prev) => {
+        const updated = prev.map((i) =>
+          i.id === id ? { ...i, qty: rounded } : i,
+        );
+
+        const ingredient = updated.find((i) => i.id === id);
+        if (isAuthenticated && ingredient?.owned) {
+          syncIngredientToBackend(ingredient, 'update').catch((e) => {
+            console.warn('Failed to sync quantity update:', e);
+          });
+        }
+
+        return updated;
+      });
+    },
+    [isAuthenticated, syncIngredientToBackend],
+  );
 
   const markPurchasedSingle = (id: string) => {
     const it = ingredients.find((i) => i.id === id);
     if (!it) return;
 
-    // Add cost to spent history
     const cost = it.price || 0;
     setSpent((prev) => prev + cost);
 
@@ -346,11 +534,9 @@ export default function MyIngredientsScreen() {
         i.id === id ? { ...i, wanted: false, owned: true, qty: 1 } : i,
       ),
     );
-
     setToast({
       text: `Marked "${it.name}" as purchased`,
       onUndo: () => {
-        // Refund spent amount if undone
         setSpent((prev) => Math.max(0, prev - cost));
         setIngredients((prev) =>
           prev.map((i) =>
@@ -367,7 +553,6 @@ export default function MyIngredientsScreen() {
   const markPurchased = () => {
     if (shoppingItems.length === 0) return;
 
-    // Sum up costs of all items being purchased
     const totalCost = shoppingItems.reduce((sum, i) => sum + (i.price || 0), 0);
     setSpent((prev) => prev + totalCost);
 
@@ -378,7 +563,6 @@ export default function MyIngredientsScreen() {
     );
   };
 
-  // Rename Logic
   const handleRename = (id: string) => {
     const it = ingredients.find((i) => i.id === id);
     if (!it) return;
@@ -429,6 +613,12 @@ export default function MyIngredientsScreen() {
     setNewName('');
   };
 
+  const cancelRename = () => {
+    setRenameModalVisible(false);
+    setRenamingItem(null);
+    setNewName('');
+  };
+
   // Price Logic
   const handleSetPrice = (id: string) => {
     const it = ingredients.find((i) => i.id === id);
@@ -456,6 +646,12 @@ export default function MyIngredientsScreen() {
     setNewPrice('');
   };
 
+  const cancelPrice = () => {
+    setPriceModalVisible(false);
+    setPricingItem(null);
+    setNewPrice('');
+  };
+
   // Budget Logic
   const handleOpenBudget = () => {
     setTempBudget(budget > 0 ? budget.toString() : '');
@@ -466,6 +662,11 @@ export default function MyIngredientsScreen() {
     const val = parseFloat(tempBudget);
     setBudget(isNaN(val) ? 0 : Math.max(0, val));
     setBudgetModalVisible(false);
+  };
+
+  const cancelBudget = () => {
+    setBudgetModalVisible(false);
+    setTempBudget('');
   };
 
   const resetSpending = () => {
@@ -486,15 +687,6 @@ export default function MyIngredientsScreen() {
     );
   };
 
-  // Menu handlers
-  const handleMenuPress = useCallback(() => {
-    setDrawerVisible(true);
-  }, []);
-
-  const handleCloseDrawer = useCallback(() => {
-    setDrawerVisible(false);
-  }, []);
-
   // Toast lifecycle
   useEffect(() => {
     if (toastTimerRef.current) {
@@ -502,7 +694,6 @@ export default function MyIngredientsScreen() {
       toastTimerRef.current = null;
     }
     if (toast) {
-      // @ts-ignore numeric timeout in RN
       toastTimerRef.current = setTimeout(
         () => setToast(null),
         5000,
@@ -514,6 +705,15 @@ export default function MyIngredientsScreen() {
     };
   }, [toast]);
 
+  // Menu handlers
+  const handleMenuPress = useCallback(() => {
+    setDrawerVisible(true);
+  }, []);
+
+  const handleCloseDrawer = useCallback(() => {
+    setDrawerVisible(false);
+  }, []);
+
   /** ----- Renderers ----- */
   const renderCabinetItem = ({ item }: { item: Ingredient }) => (
     <CabinetRow
@@ -524,28 +724,22 @@ export default function MyIngredientsScreen() {
       }}
       onAddToShopping={addToShopping}
       onRemoveFromCabinet={removeFromCabinet}
-      onAdjustQty={adjustQty}
+      onAdjustQty={(id, qty) => {
+        void adjustQty(id, qty);
+      }}
     />
   );
 
   const renderShoppingItem = ({ item }: { item: Ingredient }) => (
-    <View>
-      <ShoppingRow
-        item={item}
-        onToggleMenu={(id) => {
-          setOpenMenuForId(id);
-          setIsSheetOpen(true);
-        }}
-        onToggleWanted={toggleWanted}
-        onMarkPurchased={markPurchasedSingle}
-      />
-      {/* Price Badge */}
-      <View style={styles.priceBadge}>
-        <Text style={styles.priceText}>
-          {item.price && item.price > 0 ? `$${item.price.toFixed(2)}` : '$0.00'}
-        </Text>
-      </View>
-    </View>
+    <ShoppingRow
+      item={item}
+      onToggleMenu={(id) => {
+        setOpenMenuForId(id);
+        setIsSheetOpen(true);
+      }}
+      onToggleWanted={toggleWanted}
+      onMarkPurchased={markPurchasedSingle}
+    />
   );
 
   const renderEmpty = (title: string, subtitle: string, icon?: string) => (
@@ -731,17 +925,21 @@ export default function MyIngredientsScreen() {
         <MenuButton onPress={handleMenuPress} />
       </View>
 
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        {/* Centered page header */}
-        <View style={[styles.headerWrap, { paddingTop: insets.top + 56 }]}>
-          <Text style={styles.title}>My Cabinet</Text>
-          {loading ? (
-            <Text style={styles.subtle}>Loading…</Text>
-          ) : saving ? (
-            <Text style={styles.subtle}>Saving…</Text>
-          ) : null}
-        </View>
+      {/* Centered page header */}
+      <View style={[styles.headerWrap, { paddingTop: insets.top + 56 }]}>
+        <Text style={styles.title}>My Cabinet</Text>
+      </View>
 
+      {/* Loading/Saving indicator - absolute overlay */}
+      {(loading || saving) && (
+        <View style={[styles.statusBadge, { top: insets.top + 56 + 36 }]}>
+          <Text style={styles.statusText}>
+            {loading ? 'Loading…' : 'Saving…'}
+          </Text>
+        </View>
+      )}
+
+      <View style={styles.container}>
         {/* Tabs */}
         <View style={styles.tabsRow}>
           <Tab
@@ -759,7 +957,7 @@ export default function MyIngredientsScreen() {
           {activeTab === 'cabinet' ? CabinetView : ShoppingView}
         </View>
 
-        {/* FAB - Adjusted position */}
+        {/* FAB */}
         <TouchableOpacity
           style={styles.fab}
           onPress={() => {
@@ -771,7 +969,19 @@ export default function MyIngredientsScreen() {
         </TouchableOpacity>
 
         {/* Toast */}
-        {toast && <Toast text={toast.text} onUndo={toast.onUndo} />}
+        {toast && (
+          <View
+            style={{
+              position: 'absolute',
+              bottom: 160,
+              left: 20,
+              right: 20,
+              zIndex: 100,
+            }}
+          >
+            <Toast text={toast.text} onUndo={toast.onUndo} />
+          </View>
+        )}
 
         {/* Action sheet */}
         <ActionSheet
@@ -788,10 +998,13 @@ export default function MyIngredientsScreen() {
           visible={budgetModalVisible}
           transparent
           animationType="fade"
-          onRequestClose={() => setBudgetModalVisible(false)}
+          onRequestClose={cancelBudget}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+          <Pressable style={styles.modalOverlay} onPress={cancelBudget}>
+            <Pressable
+              style={styles.modalContent}
+              onPress={(e) => e.stopPropagation()}
+            >
               <Text style={styles.modalTitle}>Set Monthly Budget</Text>
               <TextInput
                 style={styles.modalInput}
@@ -802,10 +1015,11 @@ export default function MyIngredientsScreen() {
                 keyboardType="numeric"
                 autoFocus
                 selectTextOnFocus
+                onSubmitEditing={saveBudget}
               />
               <View style={styles.modalButtons}>
                 <TouchableOpacity
-                  onPress={() => setBudgetModalVisible(false)}
+                  onPress={cancelBudget}
                   style={[styles.modalButton, styles.modalButtonCancel]}
                 >
                   <Text style={styles.modalButtonTextCancel}>Cancel</Text>
@@ -829,8 +1043,8 @@ export default function MyIngredientsScreen() {
                   Reset Spending History
                 </Text>
               </TouchableOpacity>
-            </View>
-          </View>
+            </Pressable>
+          </Pressable>
         </Modal>
 
         {/* Price Modal */}
@@ -838,10 +1052,13 @@ export default function MyIngredientsScreen() {
           visible={priceModalVisible}
           transparent
           animationType="fade"
-          onRequestClose={() => setPriceModalVisible(false)}
+          onRequestClose={cancelPrice}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+          <Pressable style={styles.modalOverlay} onPress={cancelPrice}>
+            <Pressable
+              style={styles.modalContent}
+              onPress={(e) => e.stopPropagation()}
+            >
               <Text style={styles.modalTitle}>Item Price</Text>
               <TextInput
                 style={styles.modalInput}
@@ -856,7 +1073,7 @@ export default function MyIngredientsScreen() {
               />
               <View style={styles.modalButtons}>
                 <TouchableOpacity
-                  onPress={() => setPriceModalVisible(false)}
+                  onPress={cancelPrice}
                   style={[styles.modalButton, styles.modalButtonCancel]}
                 >
                   <Text style={styles.modalButtonTextCancel}>Cancel</Text>
@@ -868,8 +1085,8 @@ export default function MyIngredientsScreen() {
                   <Text style={styles.modalButtonTextConfirm}>Set Price</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </View>
+            </Pressable>
+          </Pressable>
         </Modal>
 
         {/* Rename Modal */}
@@ -877,10 +1094,13 @@ export default function MyIngredientsScreen() {
           visible={renameModalVisible}
           transparent
           animationType="fade"
-          onRequestClose={() => setRenameModalVisible(false)}
+          onRequestClose={cancelRename}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+          <Pressable style={styles.modalOverlay} onPress={cancelRename}>
+            <Pressable
+              style={styles.modalContent}
+              onPress={(e) => e.stopPropagation()}
+            >
               <Text style={styles.modalTitle}>Rename Ingredient</Text>
               <TextInput
                 style={styles.modalInput}
@@ -894,7 +1114,7 @@ export default function MyIngredientsScreen() {
               />
               <View style={styles.modalButtons}>
                 <TouchableOpacity
-                  onPress={() => setRenameModalVisible(false)}
+                  onPress={cancelRename}
                   style={[styles.modalButton, styles.modalButtonCancel]}
                 >
                   <Text style={styles.modalButtonTextCancel}>Cancel</Text>
@@ -914,8 +1134,8 @@ export default function MyIngredientsScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </View>
+            </Pressable>
+          </Pressable>
         </Modal>
 
         {/* Add Ingredient Modal */}
@@ -925,8 +1145,20 @@ export default function MyIngredientsScreen() {
           animationType="fade"
           onRequestClose={() => setAddVisible(false)}
         >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { maxWidth: 420 }]}>
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => setAddVisible(false)}
+          >
+            <Pressable
+              style={[
+                styles.modalContent,
+                {
+                  maxWidth: 420,
+                  marginBottom: insets.bottom + 20,
+                },
+              ]}
+              onPress={(e) => e.stopPropagation()}
+            >
               <Text style={styles.modalTitle}>Add Ingredient</Text>
 
               {/* Search input */}
@@ -938,7 +1170,7 @@ export default function MyIngredientsScreen() {
                 style={styles.modalInput}
               />
 
-              {/* List Toggle (New Fix) */}
+              {/* List Toggle */}
               <View style={styles.toggleRow}>
                 <Text style={styles.toggleLabel}>Add to:</Text>
                 <View style={styles.toggleOptions}>
@@ -1009,7 +1241,16 @@ export default function MyIngredientsScreen() {
                 >
                   <TouchableOpacity
                     onPress={() => setQty(Math.max(0, qty - 0.25))}
-                    style={[styles.modalButton, { paddingHorizontal: 12 }]}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 10,
+                      backgroundColor: '#1A1A1E',
+                      borderWidth: 1,
+                      borderColor: '#2A2A30',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
                   >
                     <Text style={{ color: '#CFCFCF', fontSize: 18 }}>−</Text>
                   </TouchableOpacity>
@@ -1020,7 +1261,16 @@ export default function MyIngredientsScreen() {
                   </Text>
                   <TouchableOpacity
                     onPress={() => setQty(Math.min(1, qty + 0.25))}
-                    style={[styles.modalButton, { paddingHorizontal: 12 }]}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 10,
+                      backgroundColor: '#1A1A1E',
+                      borderWidth: 1,
+                      borderColor: '#2A2A30',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
                   >
                     <Text style={{ color: '#CFCFCF', fontSize: 18 }}>＋</Text>
                   </TouchableOpacity>
@@ -1043,22 +1293,19 @@ export default function MyIngredientsScreen() {
                     renderItem={({ item }) => (
                       <TouchableOpacity
                         onPress={() => {
-                          const id = `${Date.now()}`;
-                          const { displayName, canonicalName } =
-                            normalizeIngredient(item.name);
-                          const name = displayName;
+                          void (async () => {
+                            const id = `${Date.now()}`;
+                            const { displayName, canonicalName } =
+                              normalizeIngredient(item.name);
+                            const name = displayName;
 
-                          // Parse price
-                          let p = parseFloat(addPrice);
-                          if (isNaN(p)) p = 0;
+                            let p = parseFloat(addPrice);
+                            if (isNaN(p)) p = 0;
 
-                          setIngredients((prev) => [
-                            ...prev,
-                            {
+                            const newIngredient: Ingredient = {
                               id,
                               name,
-                              category: 'Other',
-                              // Use the explicit target list
+                              category: categorizeIngredient(name),
                               owned: targetList === 'cabinet',
                               wanted: targetList === 'shopping',
                               impactScore: Math.random(),
@@ -1067,13 +1314,30 @@ export default function MyIngredientsScreen() {
                                 'Small',
                               ),
                               qty: Math.max(0, Math.min(1, qty)),
-                              price: p, // Save price
-                            },
-                          ]);
-                          setAddVisible(false);
-                          setAddQuery('');
-                          setQty(1);
-                          setAddPrice('');
+                              price: p,
+                            };
+
+                            setIngredients((prev) => [...prev, newIngredient]);
+
+                            if (targetList === 'cabinet' && isAuthenticated) {
+                              try {
+                                await syncIngredientToBackend(
+                                  newIngredient,
+                                  'add',
+                                );
+                              } catch (e) {
+                                console.warn(
+                                  'Failed to sync new ingredient:',
+                                  e,
+                                );
+                              }
+                            }
+
+                            setAddVisible(false);
+                            setAddQuery('');
+                            setQty(1);
+                            setAddPrice('');
+                          })();
                         }}
                         style={{
                           flexDirection: 'row',
@@ -1112,7 +1376,7 @@ export default function MyIngredientsScreen() {
                           {item.name}
                         </Text>
                         <Text style={{ color: '#9BA3AF', fontSize: 12 }}>
-                          Add
+                          Tap to add
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -1131,10 +1395,10 @@ export default function MyIngredientsScreen() {
                   <Text style={styles.modalButtonTextCancel}>Close</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          </View>
+            </Pressable>
+          </Pressable>
         </Modal>
-      </SafeAreaView>
+      </View>
 
       {/* Navigation drawer */}
       <NavigationDrawer visible={drawerVisible} onClose={handleCloseDrawer} />
@@ -1147,11 +1411,30 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    overflow: 'visible',
+    overflow: 'hidden',
   },
   body: { flex: 1 },
-  list: { flex: 1, overflow: 'visible' },
+  list: {
+    flex: 1,
+    overflow: 'hidden',
+  },
   headerWrap: { backgroundColor: Colors.background, alignItems: 'center' },
+  statusBadge: {
+    position: 'absolute',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(28, 28, 32, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2A2A30',
+    zIndex: 20,
+  },
+  statusText: {
+    color: '#9BA3AF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   menuWrap: { position: 'absolute', left: 14, zIndex: 10 },
   title: {
     fontSize: 28,
@@ -1159,11 +1442,6 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     textAlign: 'center',
     marginBottom: 4,
-  },
-  subtle: {
-    color: Colors.textSecondary ?? '#9BA3AF',
-    fontSize: 12,
-    marginBottom: 8,
   },
 
   tabsRow: {
@@ -1196,7 +1474,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   budgetAmount: {
-    color: '#22c55e', // Green for positive
+    color: '#22c55e',
     fontSize: 28,
     fontWeight: '700',
   },
@@ -1206,7 +1484,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   overBudget: {
-    color: '#ef4444', // Red for over budget
+    color: '#ef4444',
   },
   spentText: {
     color: '#9BA3AF',
@@ -1225,24 +1503,6 @@ const styles = StyleSheet.create({
     color: '#E4E4E7',
     fontSize: 12,
     fontWeight: '600',
-  },
-  // Price Badge on Row
-  priceBadge: {
-    position: 'absolute',
-    right: 50, // Left of the menu dots
-    top: 22,
-    backgroundColor: '#1E1E24',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#2C2C34',
-    zIndex: 2,
-  },
-  priceText: {
-    color: '#22c55e',
-    fontSize: 12,
-    fontWeight: '700',
   },
 
   sectionHeader: { paddingTop: 20, paddingHorizontal: 20, paddingBottom: 8 },
@@ -1279,7 +1539,7 @@ const styles = StyleSheet.create({
 
   listContent: {
     paddingHorizontal: 10,
-    paddingBottom: 140, // Increased padding so FAB doesn't cover last item
+    paddingBottom: 120,
     paddingTop: 10,
     flexGrow: 1,
   },
@@ -1316,7 +1576,7 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 20,
-    bottom: 110, // CHANGED from 28 to 110 to clear the tabs
+    bottom: 105,
     width: 58,
     height: 58,
     borderRadius: 29,
@@ -1372,6 +1632,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   modalContent: {
     backgroundColor: Colors.surface,
