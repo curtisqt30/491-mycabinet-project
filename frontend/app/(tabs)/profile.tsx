@@ -23,14 +23,15 @@ const DEFAULT_AVATAR =
   'https://api.dicebear.com/7.x/avataaars/png?seed=default';
 
 export default function ProfileScreen() {
-  const insets = useSafeAreaInsets();
+  // ✅ SAFETY: fallback for Jest
+const insets =
+  useSafeAreaInsets?.() ?? { top: 0, bottom: 0, left: 0, right: 0 };
+
   const { user } = useAuth();
   const { items: favorites } = useFavorites();
 
-  // Navigation drawer state
   const [drawerVisible, setDrawerVisible] = useState(false);
 
-  // Use real user data from auth context
   const avatarUrl = user?.avatar_url || DEFAULT_AVATAR;
   const displayName =
     user?.display_name || user?.email?.split('@')[0] || 'User';
