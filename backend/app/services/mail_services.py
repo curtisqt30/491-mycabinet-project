@@ -1,60 +1,69 @@
 import os
-import smtplib
-import ssl
-from email.message import EmailMessage
+from logging import getLogger
 from typing import Literal, Optional
 
+import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# SMTP configuration
-SMTP_HOST = os.getenv("SMTP_HOST", "mail.privateemail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER")
-SMTP_PASS = os.getenv("SMTP_PASS")
+log = getLogger(__name__)
+
+# Resend configuration (primary - works on Railway)
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+RESEND_API_URL = "https://api.resend.com/emails"
+
+# Email settings
 MAIL_FROM = os.getenv("MAIL_FROM", "MyCabinet <no-reply@mycabinet.me>")
 REPLY_TO = os.getenv("REPLY_TO")
 
 
-# ---- Utility functions ----
-def _require_creds():
-    if not (SMTP_USER and SMTP_PASS):
-        raise RuntimeError("SMTP_USER/SMTP_PASS not set. Did you create backend/.env?")
-
-
-def _build_message(
-    to: str, subject: str, html: str, text: Optional[str] = None
-) -> EmailMessage:
-    msg = EmailMessage()
-    msg["From"] = MAIL_FROM
-    msg["To"] = to
-    msg["Subject"] = subject
-    if REPLY_TO:
-        msg["Reply-To"] = REPLY_TO
-    # Plain text fallback
-    msg.set_content(text or " ")
-    # HTML body
-    msg.add_alternative(html, subtype="html")
-    return msg
+def _require_api_key():
+    if not RESEND_API_KEY:
+        raise RuntimeError(
+            "RESEND_API_KEY not set. Add it to Railway environment variables."
+        )
 
 
 def send_email(to: str, subject: str, html: str, text: Optional[str] = None) -> None:
-    """Synchronous send. Use with FastAPI BackgroundTasks for non-blocking behavior."""
-    _require_creds()
-    ctx = ssl.create_default_context()
-    msg = _build_message(to, subject, html, text)
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
-        s.starttls(context=ctx)
-        s.login(SMTP_USER, SMTP_PASS)
-        s.send_message(msg)
+    """Send email via Resend HTTP API (works on Railway, no SMTP needed)."""
+    _require_api_key()
+
+    payload = {
+        "from": MAIL_FROM,
+        "to": [to],
+        "subject": subject,
+        "html": html,
+    }
+
+    if text:
+        payload["text"] = text
+
+    if REPLY_TO:
+        payload["reply_to"] = REPLY_TO
+
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(RESEND_API_URL, json=payload, headers=headers)
+            response.raise_for_status()
+            log.info("Email sent successfully to %s via Resend", to)
+    except httpx.HTTPStatusError as e:
+        log.error("Resend API error: %s - %s", e.response.status_code, e.response.text)
+        raise RuntimeError(f"Email send failed: {e.response.text}")
+    except httpx.RequestError as e:
+        log.error("Resend request failed: %s", e)
+        raise RuntimeError(f"Email send failed: {e}")
 
 
 # ---- Shared code template ----
 def _format_code_for_html(code: str) -> str:
-    # normalize and add a bit of tracking-friendly spacing for readability
+    """Format OTP code with spacing for readability."""
     c = "".join(ch for ch in code if ch.isdigit())
-    # group as 3-3 or 4-4 depending on length; fallback to plain
     if len(c) == 6:
         return f"{c[:3]}&nbsp;&nbsp;{c[3:]}"
     if len(c) == 8:
@@ -65,11 +74,19 @@ def _format_code_for_html(code: str) -> str:
 def send_code(to: str, subject: str, code: str) -> None:
     """
     Generic code sender used by all intents (login/verify/reset/delete).
-    No links, no deep links—OTP-only.
+    Includes code in subject and preheader so it shows in email notifications.
     """
     safe_code_html = _format_code_for_html(code)
+    # Put code in subject for maximum visibility in notifications
+    subject_with_code = f"{code} - {subject}"
+    # Preheader shows in Gmail/iOS notifications as secondary text
+    preheader = f"Your code is {code}"
     html = f"""
     <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.45">
+      <!-- Preheader text for email notifications/previews -->
+      <div style="display:none;max-height:0;overflow:hidden;mso-hide:all">
+        {preheader}
+      </div>
       <h2 style="margin:0 0 12px 0">{subject}</h2>
       <p style="margin:0 0 12px 0">Enter this code in the app. It expires in a few minutes.</p>
       <div style="font-size:28px;font-weight:700;letter-spacing:6px;margin:12px 0 16px 0">
@@ -80,12 +97,14 @@ def send_code(to: str, subject: str, code: str) -> None:
       </p>
     </div>
     """
+    # Plain text - code first so it shows in notifications
     text = (
+        f"Your code is {code}\n\n"
         f"{subject}\n"
-        f"Your code: {code}\n"
+        "Enter this code in the app. It expires in a few minutes.\n"
         "If you didn't request this, ignore this email."
     )
-    send_email(to, subject, html, text)
+    send_email(to, subject_with_code, html, text)
 
 
 # ---- Intent-specific wrappers ----

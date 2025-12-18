@@ -219,7 +219,7 @@ export default function SettingsScreen() {
         visible={confirmDeleteAcct}
         title="Delete Account"
         message="This permanently deletes your account and data. You will need to verify this action via email."
-        confirmText="Send Verification Code"
+        confirmText="Send Code"
         onCancel={() => setConfirmDeleteAcct(false)}
         onConfirm={() => void handleDeleteAccountWithVerification()}
       />

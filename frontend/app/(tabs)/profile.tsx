@@ -126,10 +126,10 @@ const insets =
                   onPress={() =>
                     router.push({
                       pathname: '/drink/[drinkId]',
-                      params: { 
-                        drinkId: fav.id, 
+                      params: {
+                        drinkId: fav.id,
                         name: fav.name,
-                        thumbUrl: fav.thumbUrl 
+                        thumbUrl: fav.thumbUrl,
                       },
                     })
                   }

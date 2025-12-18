@@ -1,6 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Alert,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform,
+  ScrollView,
+  ActivityIndicator,
+} from 'react-native';
 import FormButton from '@/components/ui/FormButton';
 import AuthInput from '@/components/ui/AuthInput';
 import { DarkTheme as Colors } from '@/components/ui/ColorPalette';
@@ -11,16 +22,31 @@ const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE ??
   'http://127.0.0.1:8000/api/v1';
 
+// Helper to safely extract string from search params (handles array case)
+const getParamString = (
+  param: string | string[] | undefined,
+): string | undefined => {
+  if (Array.isArray(param)) return param[0];
+  return param;
+};
+
 export default function NewPasswordScreen() {
-  const { email, code } = useLocalSearchParams<{
+  const params = useLocalSearchParams<{
     email?: string;
     code?: string;
   }>();
+
+  const emailParam = getParamString(params.email);
+  const codeParam = getParamString(params.code);
+
   const normalizedEmail = useMemo(
-    () => (email || '').toLowerCase().trim(),
-    [email],
+    () => (emailParam || '').toLowerCase().trim(),
+    [emailParam],
   );
-  const normalizedCode = useMemo(() => (code || '').replace(/\D/g, ''), [code]);
+  const normalizedCode = useMemo(
+    () => (codeParam || '').replace(/\D/g, ''),
+    [codeParam],
+  );
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -56,63 +82,187 @@ export default function NewPasswordScreen() {
           new_password: password,
         }),
       });
+
       if (!res.ok) {
         const txt = await res.text().catch(() => '');
-        Alert.alert(
-          'Couldn’t reset password',
-          txt || 'Invalid or expired code.',
-        );
+        let errorMessage = 'Invalid or expired code.';
+
+        // Parse error response for more specific messages
+        try {
+          const errorData = JSON.parse(txt);
+          if (errorData.detail) {
+            errorMessage = errorData.detail;
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch {
+          if (txt) errorMessage = txt;
+        }
+
+        // Handle specific error cases
+        if (res.status === 400) {
+          Alert.alert(
+            'Invalid Code',
+            'The reset code is invalid or has expired. Please request a new one.',
+            [
+              {
+                text: 'Request New Code',
+                onPress: () => router.replace('/(auth)/reset-password'),
+              },
+              { text: 'Try Again', style: 'cancel' },
+            ],
+          );
+        } else if (res.status === 404) {
+          Alert.alert(
+            'Account Not Found',
+            'No account found with this email address.',
+            [
+              {
+                text: 'Create Account',
+                onPress: () => router.replace('/(auth)/create-account'),
+              },
+              { text: 'OK', style: 'cancel' },
+            ],
+          );
+        } else if (res.status === 429) {
+          Alert.alert(
+            'Too Many Attempts',
+            'You have made too many attempts. Please wait a few minutes before trying again.',
+            [{ text: 'OK' }],
+          );
+        } else {
+          Alert.alert('Could Not Reset Password', errorMessage, [
+            { text: 'OK' },
+          ]);
+        }
         return;
       }
+
+      // Success!
       Alert.alert(
-        'Password updated',
-        'You can now sign in with your new password.',
+        'Password Updated! 🎉',
+        'Your password has been successfully reset. You can now sign in with your new password.',
+        [
+          {
+            text: 'Sign In',
+            onPress: () => router.replace('/(auth)/login'),
+          },
+        ],
       );
-      router.replace('/(auth)/login');
     } catch (e: any) {
-      Alert.alert('Network error', e?.message ?? 'Please try again.');
+      Alert.alert(
+        'Network Error',
+        'Unable to connect to the server. Please check your internet connection and try again.',
+        [{ text: 'OK' }],
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
+  // Show warning if missing required params
+  if (!normalizedEmail || !normalizedCode) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Missing Information</Text>
+        <Text style={styles.subtitle}>
+          We are missing some required information to reset your password.
+          Please start the reset process again.
+        </Text>
+        <FormButton
+          title="Start Over"
+          onPress={() => router.replace('/(auth)/reset-password')}
+        />
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Create New Password</Text>
-      <Text style={styles.subtitle}>
-        Set a new password for {normalizedEmail || 'your account'}.
-      </Text>
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoid}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <Text style={styles.title}>Create New Password</Text>
+            <Text style={styles.subtitle}>
+              Set a new password for{' '}
+              <Text style={styles.emailHighlight}>{normalizedEmail}</Text>
+            </Text>
 
-      <AuthInput
-        placeholder="New password"
-        value={password}
-        onChangeText={setPassword}
-        type="password"
-        returnKeyType="next"
-      />
+            <AuthInput
+              placeholder="New password"
+              value={password}
+              onChangeText={setPassword}
+              type="password"
+              returnKeyType="next"
+            />
 
-      <AuthInput
-        placeholder="Confirm new password"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        type="password"
-        returnKeyType="go"
-      />
+            <AuthInput
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              type="password"
+              returnKeyType="go"
+              onSubmitEditing={() => {
+                if (allValid) void handleSubmit();
+              }}
+            />
 
-      <PasswordRules password={password} confirmPassword={confirmPassword} />
+            <PasswordRules
+              password={password}
+              confirmPassword={confirmPassword}
+            />
 
-      <FormButton
-        title={submitting ? 'Updating…' : 'Reset Password'}
-        onPress={() => {
-          void handleSubmit();
-        }}
-        disabled={!allValid || submitting}
-      />
-    </View>
+            <FormButton
+              title={submitting ? 'Updating…' : 'Reset Password'}
+              onPress={() => {
+                void handleSubmit();
+              }}
+              disabled={!allValid || submitting}
+            />
+
+            {submitting && (
+              <ActivityIndicator
+                style={{ marginTop: 12 }}
+                color={Colors.link}
+              />
+            )}
+
+            {/* Option to request new code if current one is problematic */}
+            <Text style={styles.helpText}>
+              Code not working?{' '}
+              <Text
+                style={styles.link}
+                onPress={() => router.replace('/(auth)/reset-password')}
+              >
+                Request a new one
+              </Text>
+            </Text>
+          </View>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 60,
+  },
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -131,5 +281,18 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 16,
+  },
+  emailHighlight: {
+    color: Colors.textPrimary,
+    fontWeight: '600',
+  },
+  helpText: {
+    marginTop: 16,
+    color: Colors.textSecondary,
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  link: {
+    color: Colors.link,
   },
 });
