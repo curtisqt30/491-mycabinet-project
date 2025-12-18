@@ -1,7 +1,11 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
 
+<<<<<<< HEAD
 //  Mock Safe Area (this one is REQUIRED)
+=======
+// Area (this one is REQUIRED)
+>>>>>>> f3f2c15146ce3619550d72cde4a835fe11b79583
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({
     top: 0,
@@ -12,17 +16,29 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 
 
+<<<<<<< HEAD
 //  Router
+=======
+// Router
+>>>>>>> f3f2c15146ce3619550d72cde4a835fe11b79583
 jest.mock('expo-router', () => ({
   router: { push: jest.fn() },
 }));
 
+<<<<<<< HEAD
 //  Icons
+=======
+// icons
+>>>>>>> f3f2c15146ce3619550d72cde4a835fe11b79583
 jest.mock('@expo/vector-icons', () => ({
   Ionicons: () => null,
 }));
 
+<<<<<<< HEAD
 //  Contexts
+=======
+// contexts
+>>>>>>> f3f2c15146ce3619550d72cde4a835fe11b79583
 jest.mock('@/app/lib/AuthContext', () => ({
   useAuth: () => ({
     user: {
@@ -39,7 +55,11 @@ jest.mock('@/app/lib/useFavorites', () => ({
   }),
 }));
 
+<<<<<<< HEAD
 //  Child components
+=======
+//  child components
+>>>>>>> f3f2c15146ce3619550d72cde4a835fe11b79583
 jest.mock('@/components/ui/FormButton', () => {
   const React = require('react');
   const { Text } = require('react-native');
@@ -58,7 +78,11 @@ jest.mock('@/components/ui/NavigationDrawer', () => {
   return () => <Text>NavigationDrawer</Text>;
 });
 
+<<<<<<< HEAD
 // AFTER ALL MOCKS
+=======
+//  AFTER ALL MOCKS
+>>>>>>> f3f2c15146ce3619550d72cde4a835fe11b79583
 import ProfileScreen from '@/app/(tabs)/profile';
 
 describe('ProfileScreen (RTL, stable)', () => {

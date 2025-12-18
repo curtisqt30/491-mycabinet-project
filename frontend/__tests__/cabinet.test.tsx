@@ -34,7 +34,7 @@ jest.mock('@/components/ui/NavigationDrawer', () => {
   const { Text } = require('react-native');
   return () => <Text>NavigationDrawer</Text>;
 });
-
+//changes made 
 // My-ingredients components
 jest.mock('@/components/my-ingredients/Chip', () => {
   const React = require('react');
