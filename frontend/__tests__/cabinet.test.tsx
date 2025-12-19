@@ -94,7 +94,52 @@ jest.mock('@/app/utils/cocktaildb', () => ({
   ingredientImageUrl: () => '',
 }));
 
-/
+// Mock expo secure store native module used by auth utilities
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: jest.fn().mockResolvedValue(null),
+  setItemAsync: jest.fn().mockResolvedValue(null),
+  deleteItemAsync: jest.fn().mockResolvedValue(null),
+  isAvailableAsync: jest.fn().mockResolvedValue(true),
+}));
+
+// Mock API hook to avoid reading env/config at module load
+jest.mock('@/app/lib/useApi', () => ({
+  useApi: () => ({
+    get: jest.fn().mockResolvedValue([]),
+    post: jest.fn().mockResolvedValue({}),
+    put: jest.fn().mockResolvedValue({}),
+    del: jest.fn().mockResolvedValue({}),
+  }),
+}));
+
+// Mock auth context hook
+jest.mock('@/app/lib/AuthContext', () => ({
+  useAuth: () => ({
+    isAuthenticated: false,
+    login: jest.fn(),
+    logout: jest.fn(),
+  }),
+}));
+
+// Mock auth module to avoid evaluating environment-dependent top-level code
+jest.mock('@/app/lib/auth', () => ({
+  authFetch: jest.fn().mockImplementation(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({}),
+  })),
+  // minimal token helpers if imported elsewhere
+  getAccessToken: jest.fn().mockResolvedValue(null),
+  getRefreshToken: jest.fn().mockResolvedValue(null),
+  storeTokens: jest.fn().mockResolvedValue(undefined),
+  refreshTokens: jest.fn().mockResolvedValue({
+    access_token: 'a',
+    refresh_token: 'r',
+    token_type: 'bearer',
+    expires_in: 3600,
+  }),
+}));
+
 
 import CabinetScreen from '@/app/(tabs)/cabinet';
 

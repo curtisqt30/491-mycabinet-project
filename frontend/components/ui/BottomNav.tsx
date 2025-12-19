@@ -129,6 +129,7 @@ export default function BottomNav({
               onPressIn={() => setIndex(i)}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
+              accessibilityLabel={String(iconName)}
             >
               <Ionicons
                 name={iconName}
