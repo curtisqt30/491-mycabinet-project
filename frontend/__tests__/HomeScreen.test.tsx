@@ -1,6 +1,6 @@
 
 //fixed test now works 
-import React from 'react';
+import type React from 'react';
 import { render, screen } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import HomeScreen from '@/app/(tabs)/home';

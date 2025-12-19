@@ -1,6 +1,9 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
 
+//  AFTER ALL MOCKS
+import ProfileScreen from '@/app/(tabs)/profile';
+
 // Mock Safe Area (this one is REQUIRED)
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({
@@ -56,9 +59,6 @@ jest.mock('@/components/ui/NavigationDrawer', () => {
   const { Text } = require('react-native');
   return () => <Text>NavigationDrawer</Text>;
 });
-
-//  AFTER ALL MOCKS
-import ProfileScreen from '@/app/(tabs)/profile';
 
 describe('ProfileScreen (RTL, stable)', () => {
   it('renders without crashing', () => {

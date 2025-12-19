@@ -1,6 +1,9 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
-import {  waitFor } from '@testing-library/react-native';
+import { render ,  waitFor } from '@testing-library/react-native';
+
+
+
+import CabinetScreen from '@/app/(tabs)/cabinet';
 
 
 jest.mock('react-native-safe-area-context', () => ({
@@ -139,9 +142,6 @@ jest.mock('@/app/lib/auth', () => ({
     expires_in: 3600,
   }),
 }));
-
-
-import CabinetScreen from '@/app/(tabs)/cabinet';
 
 
 // test
